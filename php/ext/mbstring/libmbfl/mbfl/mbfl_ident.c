@@ -51,6 +51,7 @@
 #include "filters/mbfilter_iso2022_kr.h"
 #include "filters/mbfilter_sjis.h"
 #include "filters/mbfilter_jis.h"
+#include "filters/mbfilter_iso2022_jp_ms.h"
 #include "filters/mbfilter_euc_jp.h"
 #include "filters/mbfilter_euc_jp_win.h"
 #include "filters/mbfilter_ascii.h"
@@ -60,6 +61,7 @@
 #include "filters/mbfilter_cp936.h"
 #include "filters/mbfilter_cp1251.h"
 #include "filters/mbfilter_cp1252.h"
+#include "filters/mbfilter_cp51932.h"
 #include "filters/mbfilter_iso8859_1.h"
 #include "filters/mbfilter_iso8859_2.h"
 #include "filters/mbfilter_iso8859_3.h"
@@ -87,6 +89,7 @@
 #include "filters/mbfilter_ucs4.h"
 #include "filters/mbfilter_ucs2.h"
 #include "filters/mbfilter_htmlent.h"
+#include "filters/mbfilter_armscii8.h"
 
 static const struct mbfl_identify_vtbl vtbl_identify_false = {
 	mbfl_no_encoding_pass,
@@ -105,6 +108,8 @@ static const struct mbfl_identify_vtbl *mbfl_identify_filter_list[] = {
 	&vtbl_identify_sjiswin,
 	&vtbl_identify_jis,
 	&vtbl_identify_2022jp,
+	&vtbl_identify_2022jpms,
+	&vtbl_identify_cp51932,
 	&vtbl_identify_euccn,
 	&vtbl_identify_cp936,
 	&vtbl_identify_hz,
@@ -130,6 +135,7 @@ static const struct mbfl_identify_vtbl *mbfl_identify_filter_list[] = {
 	&vtbl_identify_8859_13,
 	&vtbl_identify_8859_14,
 	&vtbl_identify_8859_15,
+	&vtbl_identify_armscii8,
 	&vtbl_identify_false,
 	NULL
 };

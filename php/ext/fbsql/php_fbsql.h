@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_fbsql.h,v 1.21.2.4 2003/07/03 16:45:31 fmk Exp $ */
+/* $Id: php_fbsql.h,v 1.31.2.1.2.2 2007/01/01 09:36:00 sebastian Exp $ */
 
 #define HAVE_FBSQL 1
 
@@ -43,6 +43,7 @@ PHP_FUNCTION(fbsql_connect);
 PHP_FUNCTION(fbsql_pconnect);
 PHP_FUNCTION(fbsql_close);
 PHP_FUNCTION(fbsql_select_db);
+PHP_FUNCTION(fbsql_set_characterset);
 PHP_FUNCTION(fbsql_change_user);
 PHP_FUNCTION(fbsql_create_db);
 PHP_FUNCTION(fbsql_drop_db);
@@ -57,6 +58,7 @@ PHP_FUNCTION(fbsql_list_fields);
 PHP_FUNCTION(fbsql_error);
 PHP_FUNCTION(fbsql_errno);
 PHP_FUNCTION(fbsql_affected_rows);
+PHP_FUNCTION(fbsql_rows_fetched);
 PHP_FUNCTION(fbsql_insert_id);
 PHP_FUNCTION(fbsql_result);
 PHP_FUNCTION(fbsql_next_result);
@@ -97,6 +99,7 @@ PHP_FUNCTION(fbsql_database_password);
 PHP_FUNCTION(fbsql_username);
 PHP_FUNCTION(fbsql_password);
 PHP_FUNCTION(fbsql_warnings);
+PHP_FUNCTION(fbsql_set_password);
 
 PHP_FUNCTION(fbsql_get_autostart_info);
 /* PHP_FUNCTION(fbsql_set_autostart_info); */
@@ -105,23 +108,23 @@ static void php_fbsql_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int result_type, 
 static void php_fbsql_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent);
 
 ZEND_BEGIN_MODULE_GLOBALS(fbsql)
-   zend_bool allowPersistent;
-   zend_bool generateWarnings;
-   zend_bool autoCommit;
-   long maxPersistent;
-   long maxLinks;
-   long maxConnections;
-   long maxResults;
-   long batchSize;
-   char *hostName;
-   char *databaseName;
-   char *databasePassword;
-   char *userName;
-   char *userPassword;
-   long persistentCount;
-   long linkCount;
-   long linkIndex;
-
+	zend_bool allowPersistent;
+	zend_bool generateWarnings;
+	zend_bool autoCommit;
+	zend_bool showTimestampDecimals;
+	long maxPersistent;
+	long maxLinks;
+	long maxConnections;
+	long maxResults;
+	long batchSize;
+	char *hostName;
+	char *databaseName;
+	char *databasePassword;
+	char *userName;
+	char *userPassword;
+	long persistentCount;
+	long linkCount;
+	long linkIndex;
 ZEND_END_MODULE_GLOBALS(fbsql)
 
 #ifdef ZTS

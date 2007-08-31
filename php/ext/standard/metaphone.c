@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
 */
 
-/* $Id: metaphone.c,v 1.21.4.4 2003/04/22 01:38:36 iliaa Exp $ */
+/* $Id: metaphone.c,v 1.28.2.1.2.4 2007/01/01 09:36:08 sebastian Exp $ */
 
 /*
 	Based on CPANs "Text-Metaphone-1.96" by Michael G Schwern <schwern@pobox.com> 
@@ -25,9 +25,9 @@
 #include "php.h"
 #include "php_metaphone.h"
 
-static int metaphone(char *word, int word_len, int max_phonemes, char **phoned_word, int traditional);
+static int metaphone(unsigned char *word, int word_len, long max_phonemes, char **phoned_word, int traditional);
 
-/* {{{ proto string metaphone(string text, int phones)
+/* {{{ proto string metaphone(string text[, int phones])
    Break english phrases down into their phonemes */
 PHP_FUNCTION(metaphone)
 {
@@ -41,7 +41,7 @@ PHP_FUNCTION(metaphone)
 		return;
 	}
 
-	if (metaphone(str, str_len, phones, &result, 1) == 0) {
+	if (metaphone((unsigned char *)str, str_len, phones, &result, 1) == 0) {
 		RETVAL_STRING(result, 0);
 	} else {
 		if (result) {
@@ -144,9 +144,7 @@ static char Lookahead(char *word, int how_far)
  * could be one though; or more too). */
 #define Phonize(c)	{ \
 						if (p_idx >= max_buffer_len) { \
-							if (NULL == (*phoned_word = erealloc(*phoned_word, max_buffer_len + 2))) { \
-								return -1; \
-							} \
+							*phoned_word = erealloc(*phoned_word, max_buffer_len + 2); \
 							max_buffer_len += 2; \
 						} \
 						(*phoned_word)[p_idx++] = c; \
@@ -161,7 +159,7 @@ static char Lookahead(char *word, int how_far)
 
 /* {{{ metaphone
  */
-static int metaphone(char *word, int word_len, int max_phonemes, char **phoned_word, int traditional)
+static int metaphone(unsigned char *word, int word_len, long max_phonemes, char **phoned_word, int traditional)
 {
 	int w_idx = 0;				/* point in the phonization we're at. */
 	int p_idx = 0;				/* end of the phoned phrase */
@@ -184,13 +182,9 @@ static int metaphone(char *word, int word_len, int max_phonemes, char **phoned_w
 	if (max_phonemes == 0) {	/* Assume largest possible */
 		max_buffer_len = word_len;
 		*phoned_word = safe_emalloc(sizeof(char), word_len, 1);
-		if (!*phoned_word)
-			return -1;
 	} else {
 		max_buffer_len = max_phonemes;
 		*phoned_word = safe_emalloc(sizeof(char), max_phonemes, 1);
-		if (!*phoned_word)
-			return -1;
 	}
 
 

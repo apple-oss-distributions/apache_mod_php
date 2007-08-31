@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,9 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: apache_config.c,v 1.1.2.3 2003/03/10 03:17:03 sniper Exp $ */
+/* $Id: apache_config.c,v 1.7.2.1.2.4 2007/08/03 09:33:17 jani Exp $ */
+
+#define ZEND_INCLUDE_FULL_WINDOWS_HEADERS
 
 #include "php.h"
 #include "php_ini.h"
@@ -33,7 +35,7 @@
 #include "http_log.h"
 #include "http_main.h"
 #include "util_script.h"
-#include "http_core.h"                         
+#include "http_core.h"
 
 #ifdef PHP_AP_DEBUG
 #define phpapdebug(a) fprintf a
@@ -49,6 +51,7 @@ typedef struct {
 	char *value;
 	size_t value_len;
 	char status;
+	char htaccess;
 } php_dir_entry;
 
 static const char *real_value_hnd(cmd_parms *cmd, void *dummy, const char *name, const char *value, int status)
@@ -65,7 +68,8 @@ static const char *real_value_hnd(cmd_parms *cmd, void *dummy, const char *name,
 	e.value = apr_pstrdup(cmd->pool, value);
 	e.value_len = strlen(value);
 	e.status = status;
-	
+	e.htaccess = ((cmd->override & (RSRC_CONF|ACCESS_CONF)) == 0);
+
 	zend_hash_update(&d->config, (char *) name, strlen(name) + 1, &e, sizeof(e), NULL);
 	return NULL;
 }
@@ -116,27 +120,31 @@ static const char *php_apache_phpini_set(cmd_parms *cmd, void *mconfig, const ch
 
 void *merge_php_config(apr_pool_t *p, void *base_conf, void *new_conf)
 {
-	php_conf_rec *d = base_conf, *e = new_conf;
+	php_conf_rec *d = base_conf, *e = new_conf, *n = NULL;
 	php_dir_entry *pe;
 	php_dir_entry *data;
 	char *str;
 	uint str_len;
 	ulong num_index;
 
-	phpapdebug((stderr, "Merge dir (%p) (%p)\n", base_conf, new_conf));
+	n = create_php_config(p, "merge_php_config");
+	zend_hash_copy(&n->config, &e->config, NULL, NULL, sizeof(php_dir_entry));
+
+	phpapdebug((stderr, "Merge dir (%p)+(%p)=(%p)\n", base_conf, new_conf, n));
 	for (zend_hash_internal_pointer_reset(&d->config);
 			zend_hash_get_current_key_ex(&d->config, &str, &str_len, 
 				&num_index, 0, NULL) == HASH_KEY_IS_STRING;
 			zend_hash_move_forward(&d->config)) {
 		pe = NULL;
 		zend_hash_get_current_data(&d->config, (void **) &data);
-		if (zend_hash_find(&e->config, str, str_len, (void **) &pe) == SUCCESS) {
+		if (zend_hash_find(&n->config, str, str_len, (void **) &pe) == SUCCESS) {
 			if (pe->status >= data->status) continue;
 		}
-		zend_hash_update(&e->config, str, str_len, data, sizeof(*data), NULL);
+		zend_hash_update(&n->config, str, str_len, data, sizeof(*data), NULL);
 		phpapdebug((stderr, "ADDING/OVERWRITING %s (%d vs. %d)\n", str, data->status, pe?pe->status:-1));
 	}
-	return new_conf;
+
+	return n;
 }
 
 char *get_php_config(void *conf, char *name, size_t name_len)
@@ -164,7 +172,7 @@ void apply_config(void *dummy)
 			zend_hash_move_forward(&d->config)) {
 		zend_hash_get_current_data(&d->config, (void **) &data);
 		phpapdebug((stderr, "APPLYING (%s)(%s)\n", str, data->value));
-		if (zend_alter_ini_entry(str, str_len, data->value, data->value_len, data->status, PHP_INI_STAGE_RUNTIME) == FAILURE) {
+		if (zend_alter_ini_entry(str, str_len, data->value, data->value_len, data->status, data->htaccess?PHP_INI_STAGE_HTACCESS:PHP_INI_STAGE_ACTIVATE) == FAILURE) {
 			phpapdebug((stderr, "..FAILED\n"));
 		}	
 	}

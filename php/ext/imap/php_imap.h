@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -20,14 +20,14 @@
    |          Rasmus Lerdorf      <rasmus@php.net>                        |
    |          Chuck Hagenbuch     <chuck@horde.org>                       |
    |          Andrew Skalski      <askalski@chekinc.com>                  |
-   |          Hartmut Holzgraefe  <hartmut@six.de>                        |
+   |          Hartmut Holzgraefe  <hholzgra@php.net>                      |
    |          Jani Taskinen       <sniper@iki.fi>                         |
    |          Daniel R. Kalowsky  <kalowsky@php.net>                      |
    | PHP 4.0 updates:  Zeev Suraski <zeev@zend.com>                       |
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_imap.h,v 1.24.2.3 2003/06/13 14:45:36 iliaa Exp $ */
+/* $Id: php_imap.h,v 1.32.2.2.2.1 2007/01/01 09:36:02 sebastian Exp $ */
 
 #ifndef PHP_IMAP_H
 #define PHP_IMAP_H
@@ -114,6 +114,7 @@ PHP_FUNCTION(imap_rfc822_parse_headers);
 PHP_FUNCTION(imap_body);
 PHP_FUNCTION(imap_fetchstructure);
 PHP_FUNCTION(imap_fetchbody);
+PHP_FUNCTION(imap_savebody);
 PHP_FUNCTION(imap_expunge);
 PHP_FUNCTION(imap_delete);
 PHP_FUNCTION(imap_undelete);
@@ -172,6 +173,7 @@ PHP_FUNCTION(imap_get_quota);
 PHP_FUNCTION(imap_get_quotaroot);
 PHP_FUNCTION(imap_set_quota);
 PHP_FUNCTION(imap_setacl);
+PHP_FUNCTION(imap_getacl);
 #endif
 
 
@@ -202,7 +204,10 @@ ZEND_BEGIN_MODULE_GLOBALS(imap)
 	unsigned long status_uidvalidity;
 #if defined(HAVE_IMAP2000) || defined(HAVE_IMAP2001)
 	zval **quota_return;
+	zval *imap_acl_list;
 #endif
+	/* php_stream for php_mail_gets() */
+	php_stream *gets_stream;
 ZEND_END_MODULE_GLOBALS(imap)
 
 #ifdef ZTS

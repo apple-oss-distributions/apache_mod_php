@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -22,7 +22,7 @@
 #ifndef PHP_SOCKETS_H
 #define PHP_SOCKETS_H
 
-/* $Id: php_sockets.h,v 1.26.2.5 2005/02/14 08:23:20 sniper Exp $ */
+/* $Id: php_sockets.h,v 1.36.2.1.2.4 2007/07/22 23:01:20 jani Exp $ */
 
 #if HAVE_SOCKETS
 
@@ -41,18 +41,13 @@ extern zend_module_entry sockets_module_entry;
 
 PHP_MINIT_FUNCTION(sockets);
 PHP_MINFO_FUNCTION(sockets);
-PHP_RINIT_FUNCTION(sockets);
 PHP_RSHUTDOWN_FUNCTION(sockets);
 
-PHP_FUNCTION(socket_iovec_alloc);
-PHP_FUNCTION(socket_iovec_free);
-PHP_FUNCTION(socket_iovec_set);
-PHP_FUNCTION(socket_iovec_fetch);
-PHP_FUNCTION(socket_iovec_add);
-PHP_FUNCTION(socket_iovec_delete);
 PHP_FUNCTION(socket_select);
 PHP_FUNCTION(socket_create_listen);
+#ifdef HAVE_SOCKETPAIR
 PHP_FUNCTION(socket_create_pair);
+#endif
 PHP_FUNCTION(socket_accept);
 PHP_FUNCTION(socket_set_nonblock);
 PHP_FUNCTION(socket_set_block);
@@ -70,32 +65,34 @@ PHP_FUNCTION(socket_recv);
 PHP_FUNCTION(socket_send);
 PHP_FUNCTION(socket_recvfrom);
 PHP_FUNCTION(socket_sendto);
-#ifdef HAVE_CMSGHDR
-PHP_FUNCTION(socket_recvmsg);
-#endif
-PHP_FUNCTION(socket_sendmsg);
-PHP_FUNCTION(socket_readv);
-PHP_FUNCTION(socket_writev);
 PHP_FUNCTION(socket_get_option);
 PHP_FUNCTION(socket_set_option);
+#ifdef HAVE_SHUTDOWN
 PHP_FUNCTION(socket_shutdown);
+#endif
 PHP_FUNCTION(socket_last_error);
 PHP_FUNCTION(socket_clear_error);
 
-typedef struct php_iovec {
-	struct iovec	*iov_array;
-	unsigned int	count;
-} php_iovec_t;
-
 #ifndef PHP_WIN32
-typedef int SOCKET;
+typedef int PHP_SOCKET;
+#else
+typedef SOCKET PHP_SOCKET;
 #endif
 
 typedef struct {
-	SOCKET	bsd_socket;
+	PHP_SOCKET bsd_socket;
 	int		type;
 	int		error;
+	int		blocking;
 } php_socket;
+
+/* Prototypes */
+#ifdef ilia_0 /* not needed, only causes a compiler warning */
+static int php_open_listen_sock(php_socket **php_sock, int port, int backlog TSRMLS_DC);
+static int php_accept_connect(php_socket *in_sock, php_socket **new_sock, struct sockaddr *la TSRMLS_DC);
+static int php_read(php_socket *sock, void *buf, size_t maxlen, int flags);
+static char *php_strerror(int error TSRMLS_DC);
+#endif
 
 ZEND_BEGIN_MODULE_GLOBALS(sockets)
 	int last_error;

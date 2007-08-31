@@ -1,22 +1,23 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
-   | Author: Sascha Schumann <sascha@schumann.cx>                         |
+   | Authors: Marcus Boerger <helly@php.net>                              |
+   |          Sascha Schumann <sascha@schumann.cx>                        |
    +----------------------------------------------------------------------+
  */
 
-/* $Id: dba_db4.c,v 1.6.2.6 2004/05/10 01:47:51 helly Exp $ */
+/* $Id: dba_db4.c,v 1.15.2.3.2.1 2007/01/01 09:35:59 sebastian Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -80,6 +81,11 @@ DBA_OPEN_FUNC(db4)
 		return FAILURE; /* not possible */
 	}
 
+	gmode |= DB_INIT_LOCK;
+	if (info->flags & DBA_PERSISTENT) {
+		gmode |= DB_THREAD;
+	}
+
 	if (info->argc > 0) {
 		convert_to_long_ex(info->argv[0]);
 		filemode = Z_LVAL_PP(info->argv[0]);
@@ -133,9 +139,15 @@ DBA_FETCH_FUNC(db4)
 	DB4_GKEY;
 	
 	memset(&gval, 0, sizeof(gval));
+	if (info->flags & DBA_PERSISTENT) {
+		gval.flags |= DB_DBT_MALLOC;
+	}
 	if (!dba->dbp->get(dba->dbp, NULL, &gkey, &gval, 0)) {
 		if (newlen) *newlen = gval.size;
 		new = estrndup(gval.data, gval.size);
+		if (info->flags & DBA_PERSISTENT) {
+			free(gval.data);
+		}
 	}
 	return new;
 }
@@ -204,10 +216,22 @@ DBA_NEXTKEY_FUNC(db4)
 	memset(&gkey, 0, sizeof(gkey));
 	memset(&gval, 0, sizeof(gval));
 
+	if (info->flags & DBA_PERSISTENT) {
+		gkey.flags |= DB_DBT_MALLOC;
+		gval.flags |= DB_DBT_MALLOC;
+	}
 	if (dba->cursor->c_get(dba->cursor, &gkey, &gval, DB_NEXT) == 0) {
 		if (gkey.data) {
 			nkey = estrndup(gkey.data, gkey.size);
 			if (newlen) *newlen = gkey.size;
+		}
+		if (info->flags & DBA_PERSISTENT) {
+			if (gkey.data) {
+				free(gkey.data);
+			}
+			if (gval.data) {
+				free(gval.data);
+			}
 		}
 	}
 

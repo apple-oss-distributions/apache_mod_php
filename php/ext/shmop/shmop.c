@@ -2,12 +2,12 @@
    +----------------------------------------------------------------------+
    | PHP version 4                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    |          Ilia Alshanetsky <ilia@prohost.org>                         |
    +----------------------------------------------------------------------+
  */
-/* $Id: shmop.c,v 1.23.8.3 2004/11/27 18:18:19 iliaa Exp $ */
+/* $Id: shmop.c,v 1.31.2.2.2.5 2007/02/24 16:36:56 iliaa Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -47,7 +47,7 @@ int shm_type;
 
 /* {{{ shmop_functions[] 
  */
-function_entry shmop_functions[] = {
+zend_function_entry shmop_functions[] = {
 	PHP_FE(shmop_open, NULL)
 	PHP_FE(shmop_read, NULL)
 	PHP_FE(shmop_close, NULL)
@@ -65,7 +65,7 @@ zend_module_entry shmop_module_entry = {
 	"shmop",
 	shmop_functions,
 	PHP_MINIT(shmop),
-	PHP_MSHUTDOWN(shmop),
+	NULL,
 	NULL,
 	NULL,
 	PHP_MINFO(shmop),
@@ -77,6 +77,16 @@ zend_module_entry shmop_module_entry = {
 #ifdef COMPILE_DL_SHMOP
 ZEND_GET_MODULE(shmop)
 #endif
+
+#define PHP_SHMOP_GET_RES \
+	shmop = zend_list_find(shmid, &type);	\
+	if (!shmop) {	\
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no shared memory segment with an id of [%lu]", shmid);	\
+		RETURN_FALSE;	\
+	} else if (type != shm_type) {	\
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "not a shmop resource");	\
+		RETURN_FALSE;	\
+	}	\
 
 /* {{{ rsclean
  */
@@ -95,14 +105,6 @@ PHP_MINIT_FUNCTION(shmop)
 {
 	shm_type = zend_register_list_destructors_ex(rsclean, NULL, "shmop", module_number);
 	
-	return SUCCESS;
-}
-/* }}} */
-
-/* {{{ PHP_MSHUTDOWN_FUNCTION
- */
-PHP_MSHUTDOWN_FUNCTION(shmop)
-{
 	return SUCCESS;
 }
 /* }}} */
@@ -129,7 +131,7 @@ PHP_FUNCTION(shmop_open)
 	int flags_len;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lsll", &key, &flags, &flags_len, &mode, &size) == FAILURE) {
-		WRONG_PARAM_COUNT;
+		return;
 	}
 
 	if (flags_len != 1) {
@@ -164,34 +166,38 @@ PHP_FUNCTION(shmop_open)
 			break;
 		default:
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "invalid access mode");
-			efree(shmop);
-			RETURN_FALSE;
+			goto err;
+	}
+
+	if (shmop->shmflg & IPC_CREAT && shmop->size < 1) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Shared memory segment size must be greater then zero.");
+		goto err;
 	}
 
 	shmop->shmid = shmget(shmop->key, shmop->size, shmop->shmflg);
 	if (shmop->shmid == -1) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to attach or create shared memory segment");
-		efree(shmop);
-		RETURN_FALSE;
+		goto err;
 	}
 
 	if (shmctl(shmop->shmid, IPC_STAT, &shm)) {
-		efree(shmop);
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to get shared memory segment information");
-		RETURN_FALSE;
+		goto err;
 	}	
 
 	shmop->addr = shmat(shmop->shmid, 0, shmop->shmatflg);
 	if (shmop->addr == (char*) -1) {
-		efree(shmop);
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to attach to shared memory segment");
-		RETURN_FALSE;
+		goto err;
 	}
 
 	shmop->size = shm.shm_segsz;
 
 	rsid = zend_list_insert(shmop, shm_type);
 	RETURN_LONG(rsid);
+err:
+	efree(shmop);
+	RETURN_FALSE;
 }
 /* }}} */
 
@@ -207,27 +213,17 @@ PHP_FUNCTION(shmop_read)
 	char *return_string;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lll", &shmid, &start, &count) == FAILURE) {
-		WRONG_PARAM_COUNT;
+		return;
 	}
 
-	shmop = zend_list_find(shmid, &type);
+	PHP_SHMOP_GET_RES
 
-	if (!shmop) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no shared memory segment with an id of [%lu]", shmid);
-		RETURN_FALSE;
-	}
-	
 	if (start < 0 || start > shmop->size) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "start is out of range");
 		RETURN_FALSE;
 	}
 
-	if (start + count > shmop->size) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "count is out of range");
-		RETURN_FALSE;
-	}
-
-	if (count < 0 ){
+	if (start + count > shmop->size || count < 0) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "count is out of range");
 		RETURN_FALSE;
 	}
@@ -252,15 +248,10 @@ PHP_FUNCTION(shmop_close)
 	int type;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &shmid) == FAILURE) {
-		WRONG_PARAM_COUNT;
+		return;
 	}
 
-	shmop = zend_list_find(shmid, &type);
-
-	if (!shmop) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no shared memory segment with an id of [%lu]", shmid);
-		RETURN_FALSE;
-	}
+	PHP_SHMOP_GET_RES
 
 	zend_list_delete(shmid);
 }
@@ -275,15 +266,10 @@ PHP_FUNCTION(shmop_size)
 	int type;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &shmid) == FAILURE) {
-		WRONG_PARAM_COUNT;
+		return;
 	}
 
-	shmop = zend_list_find(shmid, &type);
-
-	if (!shmop) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no shared memory segment with an id of [%lu]", shmid);
-		RETURN_FALSE;
-	}
+	PHP_SHMOP_GET_RES
 
 	RETURN_LONG(shmop->size);
 }
@@ -301,15 +287,10 @@ PHP_FUNCTION(shmop_write)
 	int data_len;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lsl", &shmid, &data, &data_len, &offset) == FAILURE) {
-		WRONG_PARAM_COUNT;
+		return;
 	}
 
-	shmop = zend_list_find(shmid, &type);
-
-	if (!shmop) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no shared memory segment with an id of [%lu]", shmid);
-		RETURN_FALSE;
-	}
+	PHP_SHMOP_GET_RES
 
 	if ((shmop->shmatflg & SHM_RDONLY) == SHM_RDONLY) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "trying to write to a read only segment");
@@ -337,15 +318,10 @@ PHP_FUNCTION(shmop_delete)
 	int type;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &shmid) == FAILURE) {
-		WRONG_PARAM_COUNT;
+		return;
 	}
 
-	shmop = zend_list_find(shmid, &type);
-
-	if (!shmop) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "no shared memory segment with an id of [%lu]", shmid);
-		RETURN_FALSE;
-	}
+	PHP_SHMOP_GET_RES
 
 	if (shmctl(shmop->shmid, IPC_RMID, NULL)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "can't mark segment for deletion (are you the owner?)");

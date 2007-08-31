@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -17,7 +17,7 @@
    |          Jaakko Hyvätti <jaakko@hyvatti.iki.fi>                      | 
    +----------------------------------------------------------------------+
  */
-/* $Id: reg.c,v 1.66.2.7 2003/04/22 01:38:36 iliaa Exp $ */
+/* $Id: reg.c,v 1.82.2.3.2.2 2007/01/01 09:36:08 sebastian Exp $ */
 
 #include <stdio.h>
 #include <ctype.h>
@@ -33,6 +33,8 @@ typedef struct {
 	int cflags;
 } reg_cache;
 
+static int reg_magic = 0;
+
 /* {{{ _php_regcomp
  */
 static int _php_regcomp(regex_t *preg, const char *pattern, int cflags)
@@ -42,8 +44,39 @@ static int _php_regcomp(regex_t *preg, const char *pattern, int cflags)
 	reg_cache *rc = NULL;
 	TSRMLS_FETCH();
 	
-	if(zend_hash_find(&REG(ht_rc), (char *) pattern, patlen+1, (void **) &rc) == FAILURE ||
-			rc->cflags != cflags) {
+	if(zend_hash_find(&REG(ht_rc), (char *) pattern, patlen+1, (void **) &rc) == SUCCESS
+	   && rc->cflags == cflags) {
+#ifdef HAVE_REGEX_T_RE_MAGIC
+		/*
+		 * We use a saved magic number to see whether cache is corrupted, and if it
+		 * is, we flush it and compile the pattern from scratch.
+		 */
+		if (rc->preg.re_magic != reg_magic) {
+			zend_hash_clean(&REG(ht_rc));
+		} else {
+			memcpy(preg, &rc->preg, sizeof(*preg));
+			return r;
+		}
+	}
+
+	r = regcomp(preg, pattern, cflags);
+	if(!r) {
+		reg_cache rcp;
+
+		rcp.cflags = cflags;
+		memcpy(&rcp.preg, preg, sizeof(*preg));
+		/*
+		 * Since we don't have access to the actual MAGIC1 definition in the private
+		 * header file, we save the magic value immediately after compilation. Hopefully,
+		 * it's good.
+		 */
+		if (!reg_magic) reg_magic = preg->re_magic;
+		zend_hash_update(&REG(ht_rc), (char *) pattern, patlen+1,
+						 (void *) &rcp, sizeof(rcp), NULL);
+	}
+#else
+		memcpy(preg, &rc->preg, sizeof(*preg));
+	} else {
 		r = regcomp(preg, pattern, cflags);
 		if(!r) {
 			reg_cache rcp;
@@ -51,12 +84,10 @@ static int _php_regcomp(regex_t *preg, const char *pattern, int cflags)
 			rcp.cflags = cflags;
 			memcpy(&rcp.preg, preg, sizeof(*preg));
 			zend_hash_update(&REG(ht_rc), (char *) pattern, patlen+1,
-					(void *) &rcp, sizeof(rcp), NULL);
+							 (void *) &rcp, sizeof(rcp), NULL);
 		}
-	} else {
-		memcpy(preg, &rc->preg, sizeof(*preg));
 	}
-	
+#endif
 	return r;
 }
 /* }}} */
@@ -153,7 +184,7 @@ static void php_reg_eprint(int err, regex_t *re) {
  */
 static void php_ereg(INTERNAL_FUNCTION_PARAMETERS, int icase)
 {
-	pval **regex,			/* Regular expression */
+	zval **regex,			/* Regular expression */
 		**findin,		/* String to apply expression to */
 		**array = NULL;		/* Optional register array */
 	regex_t re;
@@ -324,7 +355,7 @@ PHPAPI char *php_reg_replace(const char *pattern, const char *replace, const cha
 			new_l = strlen(buf) + subs[0].rm_so; /* part before the match */
 			walk = replace;
 			while (*walk) {
-				if ('\\' == *walk && isdigit((unsigned char)walk[1]) && ((unsigned char)walk[1]) - '0' <= re.re_nsub) {
+				if ('\\' == *walk && isdigit((unsigned char)walk[1]) && ((unsigned char)walk[1]) - '0' <= (int)re.re_nsub) {
 					if (subs[walk[1] - '0'].rm_so > -1 && subs[walk[1] - '0'].rm_eo > -1) {
 						new_l += subs[walk[1] - '0'].rm_eo - subs[walk[1] - '0'].rm_so;
 					}    
@@ -349,7 +380,7 @@ PHPAPI char *php_reg_replace(const char *pattern, const char *replace, const cha
 			walkbuf = &buf[tmp + subs[0].rm_so];
 			walk = replace;
 			while (*walk) {
-				if ('\\' == *walk && isdigit(walk[1]) && walk[1] - '0' <= re.re_nsub) {
+				if ('\\' == *walk && isdigit(walk[1]) && walk[1] - '0' <= (int)re.re_nsub) {
 					if (subs[walk[1] - '0'].rm_so > -1 && subs[walk[1] - '0'].rm_eo > -1
 						/* this next case shouldn't happen. it does. */
 						&& subs[walk[1] - '0'].rm_so <= subs[walk[1] - '0'].rm_eo) {
@@ -394,7 +425,7 @@ PHPAPI char *php_reg_replace(const char *pattern, const char *replace, const cha
 				buf = nbuf;
 			}
 			/* stick that last bit of string on our output */
-			strcat(buf, &string[pos]);
+			strlcat(buf, &string[pos], buf_len);
 		}
 	}
 
@@ -411,7 +442,7 @@ PHPAPI char *php_reg_replace(const char *pattern, const char *replace, const cha
  */
 static void php_ereg_replace(INTERNAL_FUNCTION_PARAMETERS, int icase)
 {
-	pval **arg_pattern,
+	zval **arg_pattern,
 		**arg_replace,
 		**arg_string;
 	char *pattern;
@@ -428,7 +459,7 @@ static void php_ereg_replace(INTERNAL_FUNCTION_PARAMETERS, int icase)
 		if (Z_STRVAL_PP(arg_pattern) && Z_STRLEN_PP(arg_pattern))
 			pattern = estrndup(Z_STRVAL_PP(arg_pattern), Z_STRLEN_PP(arg_pattern));
 		else
-			pattern = empty_string;
+			pattern = STR_EMPTY_ALLOC();
 	} else {
 		convert_to_long_ex(arg_pattern);
 		pattern = emalloc(2);
@@ -440,7 +471,7 @@ static void php_ereg_replace(INTERNAL_FUNCTION_PARAMETERS, int icase)
 		if (Z_STRVAL_PP(arg_replace) && Z_STRLEN_PP(arg_replace))
 			replace = estrndup(Z_STRVAL_PP(arg_replace), Z_STRLEN_PP(arg_replace));
 		else
-			replace = empty_string;
+			replace = STR_EMPTY_ALLOC();
 	} else {
 		convert_to_long_ex(arg_replace);
 		replace = emalloc(2);
@@ -452,7 +483,7 @@ static void php_ereg_replace(INTERNAL_FUNCTION_PARAMETERS, int icase)
 	if (Z_STRVAL_PP(arg_string) && Z_STRLEN_PP(arg_string))
 		string = estrndup(Z_STRVAL_PP(arg_string), Z_STRLEN_PP(arg_string));
 	else
-		string = empty_string;
+		string = STR_EMPTY_ALLOC();
 
 	/* do the actual work */
 	ret = php_reg_replace(pattern, replace, string, icase, 1);
@@ -527,7 +558,7 @@ static void php_split(INTERNAL_FUNCTION_PARAMETERS, int icase)
 	while ((count == -1 || count > 1) && !(err = regexec(&re, strp, 1, subs, 0))) {
 		if (subs[0].rm_so == 0 && subs[0].rm_eo) {
 			/* match is at start of string, return empty string */
-			add_next_index_stringl(return_value, empty_string, 0, 1);
+			add_next_index_stringl(return_value, "", 0, 1);
 			/* skip ahead the length of the regex match */
 			strp += subs[0].rm_eo;
 		} else if (subs[0].rm_so == 0 && subs[0].rm_eo == 0) {

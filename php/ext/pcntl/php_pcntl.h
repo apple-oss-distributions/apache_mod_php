@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_pcntl.h,v 1.11.4.2 2003/06/05 23:48:17 iliaa Exp $ */
+/* $Id: php_pcntl.h,v 1.20.2.1.2.1 2007/01/01 09:36:04 sebastian Exp $ */
 
 #ifndef PHP_PCNTL_H
 #define PHP_PCNTL_H
@@ -42,6 +42,7 @@ PHP_MINFO_FUNCTION(pcntl);
 PHP_FUNCTION(pcntl_alarm);
 PHP_FUNCTION(pcntl_fork);
 PHP_FUNCTION(pcntl_waitpid);
+PHP_FUNCTION(pcntl_wait);
 PHP_FUNCTION(pcntl_wifexited);
 PHP_FUNCTION(pcntl_wifstopped);
 PHP_FUNCTION(pcntl_wifsignaled);
@@ -50,13 +51,24 @@ PHP_FUNCTION(pcntl_wtermsig);
 PHP_FUNCTION(pcntl_wstopsig);
 PHP_FUNCTION(pcntl_signal);
 PHP_FUNCTION(pcntl_exec);
+#ifdef HAVE_GETPRIORITY
+PHP_FUNCTION(pcntl_getpriority);
+#endif
+#ifdef HAVE_SETPRIORITY
+PHP_FUNCTION(pcntl_setpriority);
+#endif
+
+struct php_pcntl_pending_signal {
+	struct php_pcntl_pending_signal *next;
+	long signo;
+};
 
 ZEND_BEGIN_MODULE_GLOBALS(pcntl)
 	HashTable php_signal_table;
-	zend_llist php_signal_queue;
-	int signal_queue_ready;
 	int processing_signal_queue;
+	struct php_pcntl_pending_signal *head, *tail, *spares;
 ZEND_END_MODULE_GLOBALS(pcntl)
+
 #ifdef ZTS
 #define PCNTL_G(v) TSRMG(pcntl_globals_id, zend_pcntl_globals *, v)
 #else

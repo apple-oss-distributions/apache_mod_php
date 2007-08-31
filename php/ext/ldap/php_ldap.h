@@ -1,13 +1,13 @@
 /* 
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -18,7 +18,7 @@
    +----------------------------------------------------------------------+
 */
 
-/* $Id: php_ldap.h,v 1.25.8.1 2002/12/31 16:34:50 sebastian Exp $ */
+/* $Id: php_ldap.h,v 1.32.2.1.2.2 2007/07/13 01:24:16 jani Exp $ */
 
 #ifndef PHP_LDAP_H
 #define PHP_LDAP_H
@@ -34,59 +34,53 @@ extern zend_module_entry ldap_module_entry;
 /* LDAP functions */
 PHP_MINIT_FUNCTION(ldap);
 PHP_MSHUTDOWN_FUNCTION(ldap);
-
 PHP_MINFO_FUNCTION(ldap);
 
 PHP_FUNCTION(ldap_connect);
-
 PHP_FUNCTION(ldap_bind);
+#ifdef HAVE_LDAP_SASL
+PHP_FUNCTION(ldap_sasl_bind);
+#endif
 PHP_FUNCTION(ldap_unbind);
-
 PHP_FUNCTION(ldap_read);
 PHP_FUNCTION(ldap_list);
 PHP_FUNCTION(ldap_search);
-
 PHP_FUNCTION(ldap_free_result);
 PHP_FUNCTION(ldap_count_entries);
-
 PHP_FUNCTION(ldap_first_entry);
 PHP_FUNCTION(ldap_next_entry);
 PHP_FUNCTION(ldap_get_entries);
 PHP_FUNCTION(ldap_first_attribute);
 PHP_FUNCTION(ldap_next_attribute);
 PHP_FUNCTION(ldap_get_attributes);
-
 PHP_FUNCTION(ldap_get_values);
 PHP_FUNCTION(ldap_get_values_len);
-
-PHP_FUNCTION(ber_free);
 PHP_FUNCTION(ldap_get_dn);
 PHP_FUNCTION(ldap_explode_dn);
 PHP_FUNCTION(ldap_dn2ufn);
-
 PHP_FUNCTION(ldap_add);
 PHP_FUNCTION(ldap_delete);
-
 PHP_FUNCTION(ldap_mod_add);
 PHP_FUNCTION(ldap_mod_replace);
 PHP_FUNCTION(ldap_mod_del);
-
 PHP_FUNCTION(ldap_errno);
 PHP_FUNCTION(ldap_err2str);
 PHP_FUNCTION(ldap_error);
-
 PHP_FUNCTION(ldap_compare);
-
 PHP_FUNCTION(ldap_sort);
 
-#if ( LDAP_API_VERSION > 2000 ) || HAVE_NSLDAP
+#if (LDAP_API_VERSION > 2000) || HAVE_NSLDAP || HAVE_ORALDAP_10
 PHP_FUNCTION(ldap_get_option);
 PHP_FUNCTION(ldap_set_option);
-PHP_FUNCTION(ldap_parse_result);
 PHP_FUNCTION(ldap_first_reference);
 PHP_FUNCTION(ldap_next_reference);
-PHP_FUNCTION(ldap_parse_reference);
 PHP_FUNCTION(ldap_rename);
+#ifdef HAVE_LDAP_PARSE_RESULT
+PHP_FUNCTION(ldap_parse_result);
+#endif
+#ifdef HAVE_LDAP_PARSE_REFERENCE
+PHP_FUNCTION(ldap_parse_reference);
+#endif
 #endif
 
 #if LDAP_API_VERSION > 2000

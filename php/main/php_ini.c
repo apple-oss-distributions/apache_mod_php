@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,10 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_ini.c,v 1.106.2.15 2004/09/17 02:49:48 iliaa Exp $ */
-
-/* Check CWD for php.ini */
-#define INI_CHECK_CWD
+/* $Id: php_ini.c,v 1.136.2.4.2.13 2007/05/19 12:53:06 tony2001 Exp $ */
 
 #include "php.h"
 #include "ext/standard/info.h"
@@ -31,7 +28,9 @@
 #include "SAPI.h"
 #include "php_main.h"
 #include "php_scandir.h"
+#ifdef PHP_WIN32
 #include "win32/php_registry.h"
+#endif
 
 #if HAVE_SCANDIR && HAVE_ALPHASORT && HAVE_DIRENT_H
 #include <dirent.h>
@@ -143,7 +142,7 @@ PHPAPI void display_ini_entries(zend_module_entry *module)
 	}
 	php_info_print_table_start();
 	php_info_print_table_header(3, "Directive", "Local Value", "Master Value");
-	zend_hash_apply_with_argument(EG(ini_directives), (apply_func_arg_t) php_ini_displayer, (void *) (long) module_number TSRMLS_CC);
+	zend_hash_apply_with_argument(EG(ini_directives), (apply_func_arg_t) php_ini_displayer, (void *) (zend_intptr_t) module_number TSRMLS_CC);
 	php_info_print_table_end();
 }
 /* }}} */
@@ -163,16 +162,6 @@ PHPAPI void display_ini_entries(zend_module_entry *module)
 # define ZEND_EXTENSION_TOKEN	"zend_extension"
 # endif
 #endif
-
-/* {{{ pvalue_config_destructor
- */
-static void pvalue_config_destructor(zval *pvalue)
-{   
-	if (Z_TYPE_P(pvalue) == IS_STRING && Z_STRVAL_P(pvalue) != empty_string) {
-		free(Z_STRVAL_P(pvalue));
-	}
-}
-/* }}} */
 
 /* {{{ php_config_ini_parser_cb
  */
@@ -203,6 +192,33 @@ static void php_config_ini_parser_cb(zval *arg1, zval *arg2, int callback_type, 
 			}
 			break;
 
+		case ZEND_INI_PARSER_POP_ENTRY: {
+				zval *hash;
+				zval **find_hash;
+				zval *element;
+
+				if (!arg2) {
+					/* bare string - nothing to do */
+					break;
+				}
+
+				if (zend_hash_find(&configuration_hash, Z_STRVAL_P(arg1), Z_STRLEN_P(arg1) + 1, (void **) &find_hash) == FAILURE) {
+					ALLOC_ZVAL(hash);
+					array_init(hash);
+
+					zend_hash_update(&configuration_hash, Z_STRVAL_P(arg1), Z_STRLEN_P(arg1) + 1, &hash, sizeof(zval *), NULL);
+				} else {
+					hash = *find_hash;
+				}
+
+				ALLOC_ZVAL(element);
+				*element = *arg2;
+				zval_copy_ctor(element);
+				INIT_PZVAL(element);
+				add_next_index_zval(hash, element);			
+			}
+			break;
+
 		case ZEND_INI_PARSER_SECTION:
 			break;
 	}
@@ -216,7 +232,7 @@ static void php_load_function_extension_cb(void *arg TSRMLS_DC)
 	zval *extension = (zval *) arg;
 	zval zval;
 
-	php_dl(extension, MODULE_PERSISTENT, &zval TSRMLS_CC);
+	php_dl(extension, MODULE_PERSISTENT, &zval, 0 TSRMLS_CC);
 }
 /* }}} */
 
@@ -228,32 +244,32 @@ static void php_load_zend_extension_cb(void *arg TSRMLS_DC)
 }
 /* }}} */
 
-#ifdef PHP_WIN32
-#define NUM_INI_SEARCH_LOCATIONS	4
-#else
-#define NUM_INI_SEARCH_LOCATIONS	3
-#endif
+/* {{{ pvalue_config_destructor
+ */
+static void pvalue_config_destructor(zval *pvalue)
+{   
+	if (Z_TYPE_P(pvalue) == IS_STRING) {
+		free(Z_STRVAL_P(pvalue));
+	}
+}
+/* }}} */
 
 /* {{{ php_init_config
  */
-int php_init_config()
+int php_init_config(TSRMLS_D)
 {
-	char *env_location, *php_ini_search_path;
-#ifdef PHP_WIN32
-	char *registry_location;
-#endif
-	char *binary_location;
+	char *php_ini_file_name = NULL;
+	char *php_ini_search_path = NULL;
 	int safe_mode_state;
 	char *open_basedir;
-	int free_ini_search_path=0;
-	zend_file_handle fh = {0};
+	int free_ini_search_path = 0;
+	zend_file_handle fh;
 	struct stat sb;
 	char ini_file[MAXPATHLEN];
 	char *p;
 	zend_llist scanned_ini_list;
 	int l, total_l=0;
 	zend_llist_element *element;
-	TSRMLS_FETCH();
 
 	if (zend_hash_init(&configuration_hash, 0, NULL, (dtor_func_t) pvalue_config_destructor, 1) == FAILURE) {
 		return FAILURE;
@@ -270,53 +286,62 @@ int php_init_config()
 	safe_mode_state = PG(safe_mode);
 	open_basedir = PG(open_basedir);
 
-	env_location = getenv("PHPRC");
-	if (!env_location) {
-		env_location = "";
-	}
 	if (sapi_module.php_ini_path_override) {
+		php_ini_file_name = sapi_module.php_ini_path_override;
 		php_ini_search_path = sapi_module.php_ini_path_override;
 		free_ini_search_path = 0;
-	} else {
+	} else if (!sapi_module.php_ini_ignore) {
+		int search_path_size;
 		char *default_location;
+		char *env_location;
+		char *binary_location;
 		static const char paths_separator[] = { ZEND_PATHS_SEPARATOR, 0 };
+#ifdef PHP_WIN32
+		char *reg_location;
+#endif
 
-		php_ini_search_path = (char *) emalloc(MAXPATHLEN * NUM_INI_SEARCH_LOCATIONS + strlen(env_location) + NUM_INI_SEARCH_LOCATIONS + 1);
-		free_ini_search_path = 1;
-		php_ini_search_path[0] = 0;
+		env_location = getenv("PHPRC");
+		if (!env_location) {
+			env_location = "";
+		}
 
 		/*
 		 * Prepare search path
 		 */
 
+		search_path_size = MAXPATHLEN * 4 + strlen(env_location) + 3 + 1;
+		php_ini_search_path = (char *) emalloc(search_path_size);
+		free_ini_search_path = 1;
+		php_ini_search_path[0] = 0;
+
 		/* Add environment location */
 		if (env_location[0]) {
 			if (*php_ini_search_path) {
-				strcat(php_ini_search_path, paths_separator);
+				strlcat(php_ini_search_path, paths_separator, search_path_size);
 			}
-			strcat(php_ini_search_path, env_location);
+			strlcat(php_ini_search_path, env_location, search_path_size);
+			php_ini_file_name = env_location;
 		}
 
 #ifdef PHP_WIN32
-		registry_location = GetIniPathFromRegistry();
-		if (registry_location) {
+		/* Add registry location */
+		reg_location = GetIniPathFromRegistry();
+		if (reg_location != NULL) {
 			if (*php_ini_search_path) {
-				strcat(php_ini_search_path, paths_separator);
+				strlcat(php_ini_search_path, paths_separator, search_path_size);
 			}
-			strcat(php_ini_search_path, registry_location);
-			efree(registry_location);
+			strlcat(php_ini_search_path, reg_location, search_path_size);
+			efree(reg_location);
 		}
 #endif
 
-		/* Add cwd */
-#ifdef INI_CHECK_CWD
+		/* Add cwd (not with CLI) */
 		if (strcmp(sapi_module.name, "cli") != 0) {
 			if (*php_ini_search_path) {
-				strcat(php_ini_search_path, paths_separator);
+				strlcat(php_ini_search_path, paths_separator, search_path_size);
 			}
-			strcat(php_ini_search_path, ".");
+			strlcat(php_ini_search_path, ".", search_path_size);
 		}
-#endif
 
 		/* Add binary directory */
 #ifdef PHP_WIN32
@@ -327,7 +352,36 @@ int php_init_config()
 		}
 #else
 		if (sapi_module.executable_location) {
-			binary_location = estrdup(sapi_module.executable_location);
+			binary_location = (char *)emalloc(MAXPATHLEN);
+			if (!strchr(sapi_module.executable_location, '/')) {
+				char *envpath, *path;
+				int found = 0;
+
+				if ((envpath = getenv("PATH")) != NULL) {
+					char *search_dir, search_path[MAXPATHLEN];
+					char *last;
+
+					path = estrdup(envpath);
+					search_dir = php_strtok_r(path, ":", &last);
+
+					while (search_dir) {
+						snprintf(search_path, MAXPATHLEN, "%s/%s", search_dir, sapi_module.executable_location);
+						if (VCWD_REALPATH(search_path, binary_location) && !VCWD_ACCESS(binary_location, X_OK)) {
+							found = 1;
+							break;
+						}
+						search_dir = php_strtok_r(NULL, ":", &last);
+					}
+					efree(path);
+				}
+				if (!found) {
+					efree(binary_location);
+					binary_location = NULL;
+				}
+			} else if (!VCWD_REALPATH(sapi_module.executable_location, binary_location) || VCWD_ACCESS(binary_location, X_OK)) {
+				efree(binary_location);
+				binary_location = NULL;			 
+			}
 		} else {
 			binary_location = NULL;
 		}
@@ -335,13 +389,13 @@ int php_init_config()
 		if (binary_location) {
 			char *separator_location = strrchr(binary_location, DEFAULT_SLASH);
 			
-			if (separator_location) {
-				*(separator_location+1) = 0;
+			if (separator_location && separator_location != binary_location) {
+				*(separator_location) = 0;
 			}
 			if (*php_ini_search_path) {
-				strcat(php_ini_search_path, paths_separator);
+				strlcat(php_ini_search_path, paths_separator, search_path_size);
 			}
-			strcat(php_ini_search_path, binary_location);
+			strlcat(php_ini_search_path, binary_location, search_path_size);
 			efree(binary_location);
 		}
 
@@ -351,40 +405,69 @@ int php_init_config()
 	
 		if (0 < GetWindowsDirectory(default_location, MAXPATHLEN)) {
 			if (*php_ini_search_path) {
-				strcat(php_ini_search_path, paths_separator);
+				strlcat(php_ini_search_path, paths_separator, search_path_size);
 			}
-			strcat(php_ini_search_path, default_location);
+			strlcat(php_ini_search_path, default_location, search_path_size);
 		}
 		efree(default_location);
+
+		{
+			/* For people running under terminal services, GetWindowsDirectory will
+			 * return their personal Windows directory, so lets add the system
+			 * windows directory too */
+			typedef UINT (WINAPI *get_system_windows_directory_func)(char *buffer, UINT size);
+			static get_system_windows_directory_func get_system_windows_directory = NULL;
+			HMODULE kern;
+
+			if (get_system_windows_directory == NULL) {
+				kern = LoadLibrary("kernel32.dll");
+				if (kern) {
+					get_system_windows_directory = (get_system_windows_directory_func)GetProcAddress(kern, "GetSystemWindowsDirectoryA");
+				}
+			}
+			if (get_system_windows_directory != NULL) {
+				default_location = (char *) emalloc(MAXPATHLEN + 1);
+				if (0 < get_system_windows_directory(default_location, MAXPATHLEN)) {
+					if (*php_ini_search_path) {
+						strlcat(php_ini_search_path, paths_separator, search_path_size);
+					}
+					strlcat(php_ini_search_path, default_location, search_path_size);
+				}
+				efree(default_location);
+			}
+		}
 #else
 		default_location = PHP_CONFIG_FILE_PATH;
 		if (*php_ini_search_path) {
-			strcat(php_ini_search_path, paths_separator);
+			strlcat(php_ini_search_path, paths_separator, search_path_size);
 		}
-		strcat(php_ini_search_path, default_location);
+		strlcat(php_ini_search_path, default_location, search_path_size);
 #endif
 	}
 
 	PG(safe_mode) = 0;
 	PG(open_basedir) = NULL;
 
+	memset(&fh, 0, sizeof(fh));
 	/* Check if php_ini_path_override is a file */
 	if (!sapi_module.php_ini_ignore) {
-		if (sapi_module.php_ini_path_override && sapi_module.php_ini_path_override[0]) {
+		if (php_ini_file_name && php_ini_file_name[0]) {
 			struct stat statbuf;
 	
-			if (!VCWD_STAT(sapi_module.php_ini_path_override, &statbuf)) {
+			if (!VCWD_STAT(php_ini_file_name, &statbuf)) {
 				if (!((statbuf.st_mode & S_IFMT) == S_IFDIR)) {
-					fh.handle.fp = VCWD_FOPEN(sapi_module.php_ini_path_override, "r");
-					fh.filename = sapi_module.php_ini_path_override;
+					fh.handle.fp = VCWD_FOPEN(php_ini_file_name, "r");
+					if (fh.handle.fp) {
+						fh.filename = php_ini_opened_path = expand_filepath(php_ini_file_name, NULL TSRMLS_CC);
+					}
 				}
 			}
 		}
 		/* Search php-%sapi-module-name%.ini file in search path */
 		if (!fh.handle.fp) {
 			const char *fmt = "php-%s.ini";
-			char *ini_fname = emalloc(strlen(fmt) + strlen(sapi_module.name));
-			sprintf(ini_fname, fmt, sapi_module.name);
+			char *ini_fname;
+			spprintf(&ini_fname, 0, fmt, sapi_module.name);
 			fh.handle.fp = php_fopen_with_path(ini_fname, "r", php_ini_search_path, &php_ini_opened_path TSRMLS_CC);
 			efree(ini_fname);
 			if (fh.handle.fp) {
@@ -466,13 +549,18 @@ int php_init_config()
 				php_ini_scanned_files = (char *) malloc(total_l);
 				*php_ini_scanned_files = '\0';
 				for (element = scanned_ini_list.head; element; element = element->next) {
-					strcat(php_ini_scanned_files, *(char **)element->data);		
-					strcat(php_ini_scanned_files, element->next ? ",\n" : "\n");
+					strlcat(php_ini_scanned_files, *(char **)element->data, total_l);
+					strlcat(php_ini_scanned_files, element->next ? ",\n" : "\n", total_l);
 				}	
 			}
 			zend_llist_destroy(&scanned_ini_list);
 		}
 	}
+
+	if (sapi_module.ini_entries) {
+		zend_parse_ini_string(sapi_module.ini_entries, 1, php_config_ini_parser_cb, &extension_lists);
+	}
+
 	return SUCCESS;
 }
 /* }}} */
@@ -494,9 +582,9 @@ int php_shutdown_config(void)
 }
 /* }}} */
 
-/* {{{ php_ini_delayed_modules_startup
+/* {{{ php_ini_register_extensions
  */
-void php_ini_delayed_modules_startup(TSRMLS_D)
+void php_ini_register_extensions(TSRMLS_D)
 {
 	zend_llist_apply(&extension_lists.engine, php_load_zend_extension_cb TSRMLS_CC);
 	zend_llist_apply(&extension_lists.functions, php_load_function_extension_cb TSRMLS_CC);
@@ -527,7 +615,7 @@ PHPAPI int cfg_get_long(char *varname, long *result)
 	zval *tmp, var;
 	
 	if (zend_hash_find(&configuration_hash, varname, strlen(varname) + 1, (void **) &tmp) == FAILURE) {
-		*result = (long) NULL;
+		*result = 0;
 		return FAILURE;
 	}
 	var = *tmp;

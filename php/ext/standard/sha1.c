@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,100 +16,94 @@
    +----------------------------------------------------------------------+
 */
 
-/* $Id: sha1.c,v 1.3.4.1 2002/12/31 16:35:34 sebastian Exp $ */
+/* $Id: sha1.c,v 1.13.2.1.2.3 2007/05/27 14:50:09 sniper Exp $ */
 
-#include <stdio.h>
 #include "php.h"
 
 /* This code is heavily based on the PHP md5 implementation */ 
 
 #include "sha1.h"
+#include "md5.h"
 
 PHPAPI void make_sha1_digest(char *sha1str, unsigned char *digest)
 {
-	int i;
-
-	for (i = 0; i < 20; i++) {
-		sprintf(sha1str, "%02x", digest[i]);
-		sha1str += 2;
-	}
-
-	*sha1str = '\0';
+	make_digest_ex(sha1str, digest, 20);
 }
 
-/* {{{ proto string sha1(string str)
+/* {{{ proto string sha1(string str [, bool raw_output])
    Calculate the sha1 hash of a string */
 PHP_FUNCTION(sha1)
 {
-	zval **arg;
+	char *arg;
+	int arg_len;
+	zend_bool raw_output = 0;
 	char sha1str[41];
 	PHP_SHA1_CTX context;
 	unsigned char digest[20];
 	
-	if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE) {
-		WRONG_PARAM_COUNT;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|b", &arg, &arg_len, &raw_output) == FAILURE) {
+		return;
 	}
-	convert_to_string_ex(arg);
 
 	sha1str[0] = '\0';
 	PHP_SHA1Init(&context);
-	PHP_SHA1Update(&context, Z_STRVAL_PP(arg), Z_STRLEN_PP(arg));
+	PHP_SHA1Update(&context, arg, arg_len);
 	PHP_SHA1Final(digest, &context);
-	make_sha1_digest(sha1str, digest);
-	RETVAL_STRING(sha1str, 1);
+	if (raw_output) {
+		RETURN_STRINGL(digest, 20, 1);
+	} else {
+		make_digest_ex(sha1str, digest, 20);
+		RETVAL_STRING(sha1str, 1);
+	}
+
 }
 
 /* }}} */
 
-/* {{{ proto string sha1_file(string filename)
+
+/* {{{ proto string sha1_file(string filename [, bool raw_output])
    Calculate the sha1 hash of given filename */
 PHP_FUNCTION(sha1_file)
 {
-	zval          **arg;
+	char          *arg;
+	int           arg_len;
+	zend_bool raw_output = 0;
 	char          sha1str[41];
 	unsigned char buf[1024];
 	unsigned char digest[20];
 	PHP_SHA1_CTX   context;
 	int           n;
-	FILE          *fp;
+	php_stream    *stream;
 
-	if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE) {
-		WRONG_PARAM_COUNT;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|b", &arg, &arg_len, &raw_output) == FAILURE) {
+		return;
 	}
-
-	convert_to_string_ex(arg);
-
-	if (PG(safe_mode) && (!php_checkuid(Z_STRVAL_PP(arg), NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
-		RETURN_FALSE;
-	}
-
-	if (php_check_open_basedir(Z_STRVAL_PP(arg) TSRMLS_CC)) {
-		RETURN_FALSE;
-	}
-
-	if ((fp = VCWD_FOPEN(Z_STRVAL_PP(arg), "rb")) == NULL) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to open file");
+	
+	stream = php_stream_open_wrapper(arg, "rb", REPORT_ERRORS | ENFORCE_SAFE_MODE, NULL);
+	if (!stream) {
 		RETURN_FALSE;
 	}
 
 	PHP_SHA1Init(&context);
 
-	while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+	while ((n = php_stream_read(stream, buf, sizeof(buf))) > 0) {
 		PHP_SHA1Update(&context, buf, n);
 	}
 
 	PHP_SHA1Final(digest, &context);
 
-	if (ferror(fp)) {
-		fclose(fp);
+	php_stream_close(stream);
+
+	if (n<0) {
 		RETURN_FALSE;
 	}
 
-	fclose(fp);
-
-	make_sha1_digest(sha1str, digest);
-
-	RETVAL_STRING(sha1str, 1);
+	if (raw_output) {
+		RETURN_STRINGL(digest, 20, 1);
+	} else {
+		make_digest_ex(sha1str, digest, 20);
+		RETVAL_STRING(sha1str, 1);
+	}
 }
 /* }}} */
 

@@ -1,20 +1,20 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
    | Authors: Shane Caraveo             <shane@caraveo.com>               | 
    |          Colin Viebrock            <colin@easydns.com>               |
-   |          Hartmut Holzgraefe        <hartmut@six.de>                  |
+   |          Hartmut Holzgraefe        <hholzgra@php.net>                |
    +----------------------------------------------------------------------+
  */
 /* $Id: */
@@ -28,7 +28,7 @@
    Convert UNIX timestamp to Julian Day */
 PHP_FUNCTION(unixtojd)
 {
-  pval *timestamp;
+  zval *timestamp;
   long jdate; 
   time_t t;
   struct tm *ta, tmbuf;
@@ -50,6 +50,10 @@ PHP_FUNCTION(unixtojd)
   }
 
   ta = php_localtime_r(&t, &tmbuf);
+  if (!ta) {
+	  RETURN_FALSE;
+  }
+
   jdate = GregorianToSdn(ta->tm_year+1900, ta->tm_mon+1, ta->tm_mday);
   
   RETURN_LONG(jdate);
@@ -60,7 +64,7 @@ PHP_FUNCTION(unixtojd)
    Convert Julian Day to UNIX timestamp */
 PHP_FUNCTION(jdtounix)
 {
-  pval *jday;
+  zval *jday;
   long uday;
 
   if ((ZEND_NUM_ARGS()!= 1) || (zend_get_parameters(ht, 1, &jday) != SUCCESS)) {

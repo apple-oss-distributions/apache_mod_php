@@ -1,22 +1,22 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
-   | Author: Stig Sæther Bakken <ssb@fast.no>                             |
+   | Author: Stig Sæther Bakken <ssb@php.net>                             |
    +----------------------------------------------------------------------+
  */
 
-/* $Id: versioning.c,v 1.12.4.2 2003/08/05 12:34:49 sniper Exp $ */
+/* $Id: versioning.c,v 1.19.2.1.2.3 2007/08/23 18:38:42 derick Exp $ */
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -34,7 +34,7 @@ PHPAPI char *
 php_canonicalize_version(const char *version)
 {
     int len = strlen(version);
-    char *buf = emalloc(len * 2 + 1), *q, lp, lq;
+    char *buf = safe_emalloc(len, 2, 1), *q, lp, lq;
     const char *p;
 
     if (len == 0) {
@@ -90,13 +90,14 @@ static int
 compare_special_version_forms(char *form1, char *form2)
 {
 	int found1 = -1, found2 = -1;
-	special_forms_t special_forms[10] = {
+	special_forms_t special_forms[11] = {
 		{"dev", 0},
 		{"alpha", 1},
 		{"a", 1},
 		{"beta", 2},
 		{"b", 2},
 		{"RC", 3},
+		{"rc", 3},
 		{"#", 4},
 		{"pl", 5},
 		{"p", 5},
@@ -204,8 +205,6 @@ php_version_compare(const char *orig_ver1, const char *orig_ver2)
 }
 
 /* }}} */
-/* {{{ do_version_compare() */
-
 /* {{{ proto int version_compare(string ver1, string ver2 [, string oper])
   Compares two "PHP-standardized" version number strings */
 

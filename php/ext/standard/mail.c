@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: mail.c,v 1.66.2.12 2004/01/09 01:35:58 iliaa Exp $ */
+/* $Id: mail.c,v 1.87.2.1.2.7 2007/07/11 17:36:56 johannes Exp $ */
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -36,24 +36,31 @@
 #include "safe_mode.h"
 #include "exec.h"
 
-#if HAVE_SENDMAIL
 #ifdef PHP_WIN32
 #include "win32/sendmail.h"
 #endif
 
 #ifdef NETWARE
-#include "netware/pipe.h"    /* For popen(), pclose() */
-#include "netware/sysexits.h"   /* For exit status codes like EX_OK */
+#define EX_OK           0       /* successful termination */
+#define EX_TEMPFAIL     75      /* temp failure; user is invited to retry */
 #endif
 
 #define SKIP_LONG_HEADER_SEP(str, pos)										\
 	if (str[pos] == '\r' && str[pos + 1] == '\n' && (str[pos + 2] == ' ' || str[pos + 2] == '\t')) {	\
-		pos += 3;											\
-		while (str[pos] == ' ' || str[pos] == '\t') {							\
+		pos += 2;											\
+		while (str[pos + 1] == ' ' || str[pos + 1] == '\t') {							\
 			pos++;											\
 		}												\
 		continue;											\
 	}													\
+
+#define MAIL_ASCIIZ_CHECK(str, len)			\
+	p = str;					\
+	e = p + len;					\
+	while ((p = memchr(p, '\0', (e - p)))) {	\
+		*p = ' ';				\
+	}						\
+
 
 /* {{{ proto int ezmlm_hash(string addr)
    Calculate EZMLM list hash value. */
@@ -86,7 +93,9 @@ PHP_FUNCTION(mail)
 	char *subject=NULL, *extra_cmd=NULL;
 	int to_len, message_len, headers_len;
 	int subject_len, extra_cmd_len, i;
+	char *force_extra_parameters = INI_STR("mail.force_extra_parameters");
 	char *to_r, *subject_r;
+	char *p, *e;
 
 	if (PG(safe_mode) && (ZEND_NUM_ARGS() == 5)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "SAFE MODE Restriction in effect.  The fifth parameter is disabled in SAFE MODE.");
@@ -101,6 +110,17 @@ PHP_FUNCTION(mail)
 							  &extra_cmd, &extra_cmd_len
 							  ) == FAILURE) {
 		return;
+	}
+
+	/* ASCIIZ check */
+	MAIL_ASCIIZ_CHECK(to, to_len);
+	MAIL_ASCIIZ_CHECK(subject, subject_len);
+	MAIL_ASCIIZ_CHECK(message, message_len);
+	if (headers) {
+		MAIL_ASCIIZ_CHECK(headers, headers_len);
+	}
+	if (extra_cmd) {
+		MAIL_ASCIIZ_CHECK(extra_cmd, extra_cmd_len);
 	}
 
 	if (to_len > 0) {
@@ -124,7 +144,7 @@ PHP_FUNCTION(mail)
 		}
 	} else {
 		to_r = to;
-	}
+  	}
 
 	if (subject_len > 0) {
 		subject_r = estrndup(subject, subject_len);
@@ -134,7 +154,7 @@ PHP_FUNCTION(mail)
 			}
 			subject_r[subject_len - 1] = '\0';
 		}
-		for(i = 0; subject[i]; i++) {
+		for(i = 0; subject_r[i]; i++) {
 			if (iscntrl((unsigned char) subject_r[i])) {
 				SKIP_LONG_HEADER_SEP(subject_r, i);
 				subject_r[i] = ' ';
@@ -144,10 +164,12 @@ PHP_FUNCTION(mail)
 		subject_r = subject;
 	}
 
-	if (extra_cmd) {
+	if (force_extra_parameters) {
+		extra_cmd = php_escape_shell_cmd(force_extra_parameters);
+	} else if (extra_cmd) {
 		extra_cmd = php_escape_shell_cmd(extra_cmd);
 	}
-	
+
 	if (php_mail(to_r, subject_r, message, headers, extra_cmd TSRMLS_CC)) {
 		RETVAL_TRUE;
 	} else {
@@ -182,7 +204,7 @@ PHPAPI int php_mail(char *to, char *subject, char *message, char *headers, char 
 	if (!sendmail_path) {
 #if (defined PHP_WIN32 || defined NETWARE)
 		/* handle old style win smtp sending */
-		if (TSendMail(INI_STR("SMTP"), &tsm_err, &tsm_errmsg, headers, subject, to, message, NULL, NULL, NULL) == FAILURE) {
+		if (TSendMail(INI_STR("SMTP"), &tsm_err, &tsm_errmsg, headers, subject, to, message, NULL, NULL, NULL TSRMLS_CC) == FAILURE) {
 			if (tsm_errmsg) {
 				php_error_docref(NULL TSRMLS_CC, E_WARNING, "%s", tsm_errmsg);
 				efree(tsm_errmsg);
@@ -197,10 +219,7 @@ PHPAPI int php_mail(char *to, char *subject, char *message, char *headers, char 
 #endif
 	}
 	if (extra_cmd != NULL) {
-		sendmail_cmd = emalloc (strlen (sendmail_path) + strlen (extra_cmd) + 2);
-		strcpy (sendmail_cmd, sendmail_path);
-		strcat (sendmail_cmd, " ");
-		strcat (sendmail_cmd, extra_cmd);
+		spprintf(&sendmail_cmd, 0, "%s %s", sendmail_path, extra_cmd);
 	} else {
 		sendmail_cmd = sendmail_path;
 	}
@@ -274,13 +293,6 @@ PHP_MINFO_FUNCTION(mail)
 #endif
 }
 /* }}} */
-
-#else
-
-PHP_FUNCTION(mail) {}
-PHP_MINFO_FUNCTION(mail) {}
-
-#endif
 
 /*
  * Local variables:

@@ -2,11 +2,11 @@
    +----------------------------------------------------------------------+
    | Zend Engine                                                          |
    +----------------------------------------------------------------------+
-   | Copyright (c) 2003 Sascha Schumann                                   |
+   | Copyright (c) 1998-2007 Zend Technologies Ltd. (http://www.zend.com) |
    +----------------------------------------------------------------------+
    | This source file is subject to version 2.00 of the Zend license,     |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
+   | available through the world-wide-web at the following url:           |
    | http://www.zend.com/license/2_00.txt.                                |
    | If you did not receive a copy of the Zend license and are unable to  |
    | obtain it through the world-wide-web, please send a note to          |
@@ -17,8 +17,7 @@
    +----------------------------------------------------------------------+
 */
 
-/* for zend_bool and limits.h */
-#include "zend.h"
+/* $Id: zend_multiply.h,v 1.10.2.1.2.2 2007/04/10 10:57:35 sniper Exp $ */
 
 #if defined(__i386__) && defined(__GNUC__)
 
@@ -36,8 +35,8 @@
 
 #define ZEND_SIGNED_MULTIPLY_LONG(a, b, lval, dval, usedval) do {		\
 	long   __lres  = (a) * (b);											\
-	double __dres  = (double)(a) * (double)(b);							\
-	double __delta = (double) __lres - __dres;							\
+	long double __dres  = (long double)(a) * (long double)(b);							\
+	long double __delta = (long double) __lres - __dres;							\
 	if ( ((usedval) = (( __dres + __delta ) != __dres))) {				\
 		(dval) = __dres;												\
 	} else {															\

@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: birdstep.c,v 1.3.4.3 2005/01/09 21:05:31 sniper Exp $ */
+/* $Id: birdstep.c,v 1.13.2.2.2.1 2007/01/01 09:36:03 sebastian Exp $ */
 
 /*
  * TODO:
@@ -48,7 +48,7 @@
 #include "php_birdstep.h"
 #include "ext/standard/info.h"
 
-function_entry birdstep_functions[] = {
+zend_function_entry birdstep_functions[] = {
 	PHP_FE(birdstep_connect,        NULL)
 	PHP_FE(birdstep_close,          NULL)
 	PHP_FE(birdstep_exec,           NULL)
@@ -103,8 +103,8 @@ ZEND_GET_MODULE(birdstep)
 THREAD_LS birdstep_module php_birdstep_module;
 THREAD_LS static HENV henv;
 
-#define PHP_GET_BIRDSTEP_RES_IDX(id) convert_to_long_ex(id); if (!(res = birdstep_find_result(list, Z_LVAL_PP(id)))) { php_error_docref(NULL TSRMLS_CC, E_WARNING, "Birdstep: Not result index (%d)", Z_LVAL_PP(id)); RETURN_FALSE; } 
-#define PHP_BIRDSTEP_CHK_LNK(id) convert_to_long_ex(id); if (!(conn = birdstep_find_conn(list,Z_LVAL_PP(id)))) { php_error_docref(NULL TSRMLS_CC, E_WARNING, "Birdstep: Not connection index (%d)", Z_LVAL_PP(id)); RETURN_FALSE; }
+#define PHP_GET_BIRDSTEP_RES_IDX(id) convert_to_long_ex(id); if (!(res = birdstep_find_result(list, Z_LVAL_PP(id)))) { php_error_docref(NULL TSRMLS_CC, E_WARNING, "Birdstep: Not result index (%ld)", Z_LVAL_PP(id)); RETURN_FALSE; } 
+#define PHP_BIRDSTEP_CHK_LNK(id) convert_to_long_ex(id); if (!(conn = birdstep_find_conn(list,Z_LVAL_PP(id)))) { php_error_docref(NULL TSRMLS_CC, E_WARNING, "Birdstep: Not connection index (%ld)", Z_LVAL_PP(id)); RETURN_FALSE; }
                                                         
 
 static void _close_birdstep_link(zend_rsrc_list_entry *rsrc TSRMLS_DC)
@@ -345,7 +345,7 @@ PHP_FUNCTION(birdstep_exec)
 		efree(res);
 		RETURN_LONG(rows);
 	} else {  /* Was SELECT query */
-		res->values = (VResVal *)emalloc(sizeof(VResVal)*cols);
+		res->values = (VResVal *)safe_emalloc(sizeof(VResVal), cols, 0);
 		res->numcols = cols;
 		for ( i = 0; i < cols; i++ ) {
 			SQLColAttributes(res->hstmt,i+1,SQL_COLUMN_NAME,

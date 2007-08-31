@@ -1,13 +1,13 @@
 /* 
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,39 +16,20 @@
    +----------------------------------------------------------------------+
 */
 
-/* $Id: php_bcmath.h,v 1.11.4.2 2002/12/31 16:34:10 sebastian Exp $ */
+/* $Id: php_bcmath.h,v 1.20.2.1.2.2 2007/01/01 09:35:48 sebastian Exp $ */
 
 #ifndef PHP_BCMATH_H
 #define PHP_BCMATH_H
 
-#if WITH_BCMATH
+#if HAVE_BCMATH
 
 #include "libbcmath/src/bcmath.h"
-
-ZEND_BEGIN_MODULE_GLOBALS(bcmath)
-	bc_num _zero_;
-	bc_num _one_;
-	bc_num _two_;
-ZEND_END_MODULE_GLOBALS(bcmath)
-	
-#if ZTS
-# define BCG(v) TSRMG(bcmath_globals_id, zend_bcmath_globals *, v)
-extern int bcmath_globals_id;
-#else
-# define BCG(v) (bcmath_globals.v)
-extern zend_bcmath_globals bcmath_globals;
-#endif
-
-#define BC
 
 extern zend_module_entry bcmath_module_entry;
 #define phpext_bcmath_ptr &bcmath_module_entry
 
-#if ZTS
 PHP_MINIT_FUNCTION(bcmath);
-#endif
-PHP_RINIT_FUNCTION(bcmath);
-PHP_RSHUTDOWN_FUNCTION(bcmath);
+PHP_MSHUTDOWN_FUNCTION(bcmath);
 PHP_MINFO_FUNCTION(bcmath);
 
 PHP_FUNCTION(bcadd);
@@ -60,6 +41,22 @@ PHP_FUNCTION(bcpow);
 PHP_FUNCTION(bcsqrt);
 PHP_FUNCTION(bccomp);
 PHP_FUNCTION(bcscale);
+PHP_FUNCTION(bcpowmod);
+
+ZEND_BEGIN_MODULE_GLOBALS(bcmath)
+	bc_num _zero_;
+	bc_num _one_;
+	bc_num _two_;
+	long bc_precision;
+ZEND_END_MODULE_GLOBALS(bcmath)
+	
+#if ZTS
+#define BCG(v) TSRMG(bcmath_globals_id, zend_bcmath_globals *, v)
+#else
+#define BCG(v) (bcmath_globals.v)
+#endif
+
+ZEND_EXTERN_MODULE_GLOBALS(bcmath)
 
 #else
 

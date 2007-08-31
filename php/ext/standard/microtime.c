@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: microtime.c,v 1.39.2.2 2005/03/01 21:34:30 iliaa Exp $ */
+/* $Id: microtime.c,v 1.53.2.2.2.3 2007/01/01 09:36:08 sebastian Exp $ */
 
 #include "php.h"
 
@@ -26,11 +26,8 @@
 #ifdef PHP_WIN32
 #include "win32/time.h"
 #elif defined(NETWARE)
-#ifdef NEW_LIBC
 #include <sys/timeval.h>
-#else
-#include "netware/time_nw.h"
-#endif
+#include <sys/time.h>
 #else
 #include <sys/time.h>
 #endif
@@ -46,59 +43,65 @@
 #include <errno.h>
 
 #include "microtime.h"
+#include "ext/date/php_date.h"
 
 #define NUL  '\0'
 #define MICRO_IN_SEC 1000000.00
 #define SEC_IN_MIN 60
 
-/* {{{ proto string microtime(void)
-   Returns a string containing the current time in seconds and microseconds */
 #ifdef HAVE_GETTIMEOFDAY
-PHP_FUNCTION(microtime)
+static void _php_gettimeofday(INTERNAL_FUNCTION_PARAMETERS, int mode)
 {
-	struct timeval tp;
-	long sec = 0L;
-	double msec = 0.0;
-	char ret[100];
-	
-	if (gettimeofday((struct timeval *) &tp, (NUL)) == 0) {
-		msec = (double) (tp.tv_usec / MICRO_IN_SEC);
-		sec = tp.tv_sec;
-	
-		if (msec >= 1.0) msec -= (long) msec;
-		snprintf(ret, 100, "%.8f %ld", msec, sec);
-		RETVAL_STRING(ret,1);
-	} else {
+	zend_bool get_as_float = 0;
+	struct timeval tp = {0};
+	struct timezone tz = {0};
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|b", &get_as_float) == FAILURE) {
+		return;
+	}
+
+	if (gettimeofday(&tp, &tz)) {
 		RETURN_FALSE;
 	}
-}
-#endif
-/* }}} */
 
-/* {{{ proto array gettimeofday(void)
-   Returns the current time as array */
-#ifdef HAVE_GETTIMEOFDAY
-PHP_FUNCTION(gettimeofday)
-{
-	struct timeval tp;
-	struct timezone tz;
-	
-	memset(&tp, 0, sizeof(tp));
-	memset(&tz, 0, sizeof(tz));
-	if(gettimeofday(&tp, &tz) == 0) {
+	if (get_as_float) {
+		RETURN_DOUBLE((double)(tp.tv_sec + tp.tv_usec / MICRO_IN_SEC));
+	}
+
+	if (mode) {
+		timelib_time_offset *offset;
+
+		offset = timelib_get_time_zone_info(tp.tv_sec, get_timezone_info(TSRMLS_C));
+				
 		array_init(return_value);
 		add_assoc_long(return_value, "sec", tp.tv_sec);
 		add_assoc_long(return_value, "usec", tp.tv_usec);
-#ifdef PHP_WIN32
-		add_assoc_long(return_value, "minuteswest", tz.tz_minuteswest/SEC_IN_MIN);
-#else
-		add_assoc_long(return_value, "minuteswest", tz.tz_minuteswest);
-#endif			
-		add_assoc_long(return_value, "dsttime", tz.tz_dsttime);
-		return;
+
+		add_assoc_long(return_value, "minuteswest", -offset->offset / SEC_IN_MIN);
+		add_assoc_long(return_value, "dsttime", offset->is_dst);
+
+		timelib_time_offset_dtor(offset);
 	} else {
-		RETURN_FALSE;
+		char ret[100];
+
+		snprintf(ret, 100, "%.8F %ld", tp.tv_usec / MICRO_IN_SEC, tp.tv_sec);
+		RETURN_STRING(ret, 1);
 	}
+}
+
+/* {{{ proto mixed microtime([bool get_as_float])
+   Returns either a string or a float containing the current time in seconds and microseconds */
+PHP_FUNCTION(microtime)
+{
+	_php_gettimeofday(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
+}
+/* }}} */
+
+/* {{{ proto array gettimeofday([bool get_as_float])
+   Returns the current time as array */
+PHP_FUNCTION(gettimeofday)
+{
+	_php_gettimeofday(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
 #endif
 /* }}} */
@@ -109,19 +112,20 @@ PHP_FUNCTION(gettimeofday)
 PHP_FUNCTION(getrusage)
 {
 	struct rusage usg;
-	int ac = ZEND_NUM_ARGS();
-	pval **pwho;
+	long pwho = 0;
 	int who = RUSAGE_SELF;
 
-	if(ac == 1 &&
-		zend_get_parameters_ex(ac, &pwho) != FAILURE) {
-		convert_to_long_ex(pwho);
-		if(Z_LVAL_PP(pwho) == 1)
-			who = RUSAGE_CHILDREN;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &pwho) == FAILURE) {
+		return;
+	}
+	
+	if (pwho == 1) {
+		who = RUSAGE_CHILDREN;
 	}
 
-	memset(&usg, 0, sizeof(usg));
-	if(getrusage(who, &usg) == -1) {
+	memset(&usg, 0, sizeof(struct rusage));
+
+	if (getrusage(who, &usg) == -1) {
 		RETURN_FALSE;
 	}
 

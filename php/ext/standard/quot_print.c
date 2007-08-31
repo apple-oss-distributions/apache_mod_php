@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: quot_print.c,v 1.22.2.1 2002/12/31 16:35:33 sebastian Exp $ */
+/* $Id: quot_print.c,v 1.29.2.2.2.1 2007/01/01 09:36:08 sebastian Exp $ */
 
 #include <stdlib.h>
 
@@ -50,6 +50,98 @@ static char php_hex2int(int c)
 	}
 }
 
+PHPAPI unsigned char *php_quot_print_decode(const unsigned char *str, size_t length, size_t *ret_length, int replace_us_by_ws)
+{
+	register unsigned int i;
+	register unsigned const char *p1;
+	register unsigned char *p2;
+	register unsigned int h_nbl, l_nbl;
+
+	size_t decoded_len, buf_size;
+	unsigned char *retval;
+
+	static unsigned int hexval_tbl[256] = {
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 32, 16, 64, 64, 16, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		32, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 64, 64, 64, 64, 64, 64,
+		64, 10, 11, 12, 13, 14, 15, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64
+	};
+
+	if (replace_us_by_ws) {
+		replace_us_by_ws = '_';
+	}
+
+	i = length, p1 = str; buf_size = length;
+
+	while (i > 1 && *p1 != '\0') {
+		if (*p1 == '=') {
+			buf_size -= 2;
+			p1++;
+			i--;
+		}
+		p1++;
+		i--;
+	}
+
+	retval = emalloc(buf_size + 1);
+	i = length; p1 = str; p2 = retval;
+	decoded_len = 0;
+
+	while (i > 0 && *p1 != '\0') {
+		if (*p1 == '=') {
+			i--, p1++;
+			if (i == 0 || *p1 == '\0') {
+				break;
+			}
+			h_nbl = hexval_tbl[*p1];
+			if (h_nbl < 16) {
+				/* next char should be a hexadecimal digit */
+				if ((--i) == 0 || (l_nbl = hexval_tbl[*(++p1)]) >= 16) {
+					efree(retval);
+					return NULL;
+				}
+				*(p2++) = (h_nbl << 4) | l_nbl, decoded_len++;
+				i--, p1++;
+			} else if (h_nbl < 64) {
+				/* soft line break */
+				while (h_nbl == 32) {
+					if (--i == 0 || (h_nbl = hexval_tbl[*(++p1)]) == 64) {
+						efree(retval);
+						return NULL;
+					}
+				}
+				if (p1[0] == '\r' && i >= 2 && p1[1] == '\n') {
+					i--, p1++;
+				}
+				i--, p1++;
+			} else {
+				efree(retval);
+				return NULL;
+			}
+		} else {
+			*(p2++) = (replace_us_by_ws == *p1 ? '\x20': *p1);
+			i--, p1++, decoded_len++;
+		}
+	}
+
+	*p2 = '\0';
+	*ret_length = decoded_len;
+	return retval;
+}
+
+
 /*
 *
 * Decoding  Quoted-printable string.
@@ -59,7 +151,7 @@ static char php_hex2int(int c)
    Convert a quoted-printable string to an 8 bit string */
 PHP_FUNCTION(quoted_printable_decode)
 {
-	pval **arg1;
+	zval **arg1;
 	char *str_in, *str_out;
 	int i = 0, j = 0, k;
 

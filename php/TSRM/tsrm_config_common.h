@@ -1,14 +1,14 @@
 #ifndef TSRM_CONFIG_COMMON_H
 #define TSRM_CONFIG_COMMON_H
 
-#if WINNT|WIN32
-# define TSRM_WIN32
+#ifndef __CYGWIN__
+# if WINNT|WIN32
+#  define TSRM_WIN32
+# endif
 #endif
 
 #ifdef TSRM_WIN32
 # include "tsrm_config.w32.h"
-#elif defined(NETWARE)
-# include "tsrm_config.nw.h"
 #else
 # include <tsrm_config.h>
 # include <sys/param.h>
@@ -25,7 +25,9 @@
 #pragma alloca
 #  else
 #   ifndef alloca /* predefined by HP cc +Olibcalls */
+#    ifndef NETWARE
 char *alloca ();
+#    endif
 #   endif
 #  endif
 # endif
@@ -42,6 +44,8 @@ char *alloca ();
 #ifndef MAXPATHLEN
 # ifdef PATH_MAX
 #  define MAXPATHLEN PATH_MAX
+# elif defined(MAX_PATH)
+#  define MAXPATHLEN MAX_PATH
 # else
 #  define MAXPATHLEN 256
 # endif

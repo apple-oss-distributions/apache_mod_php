@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -15,16 +15,12 @@
    | Author: Rasmus Lerdorf <rasmus@lerdorf.on.ca>                        |
    +----------------------------------------------------------------------+
  */
-/* $Id: head.c,v 1.66.2.4 2005/01/07 21:14:23 tony2001 Exp $ */
+/* $Id: head.c,v 1.84.2.1.2.7 2007/02/26 02:12:36 iliaa Exp $ */
 
 #include <stdio.h>
-
-#if defined(NETWARE) && !defined(NEW_LIBC)
-#include <sys/socket.h>
-#endif
-
 #include "php.h"
 #include "ext/standard/php_standard.h"
+#include "ext/date/php_date.h"
 #include "SAPI.h"
 #include "php_main.h"
 #include "head.h"
@@ -54,10 +50,8 @@ PHP_FUNCTION(header)
 }
 /* }}} */
 
-PHPAPI int php_header()
+PHPAPI int php_header(TSRMLS_D)
 {
-	TSRMLS_FETCH();
-
 	if (sapi_send_headers(TSRMLS_C)==FAILURE || SG(request_info).headers_only) {
 		return 0; /* don't allow output */
 	} else {
@@ -66,21 +60,33 @@ PHPAPI int php_header()
 }
 
 
-PHPAPI int php_setcookie(char *name, int name_len, char *value, int value_len, time_t expires, char *path, int path_len, char *domain, int domain_len, int secure TSRMLS_DC)
+PHPAPI int php_setcookie(char *name, int name_len, char *value, int value_len, time_t expires, char *path, int path_len, char *domain, int domain_len, int secure, int url_encode, int httponly TSRMLS_DC)
 {
 	char *cookie, *encoded_value = NULL;
 	int len=sizeof("Set-Cookie: ");
-	time_t t;
 	char *dt;
 	sapi_header_line ctr = {0};
 	int result;
 	
+	if (name && strpbrk(name, "=,; \t\r\n\013\014") != NULL) {   /* man isspace for \013 and \014 */
+		zend_error( E_WARNING, "Cookie names can not contain any of the folllowing '=,; \\t\\r\\n\\013\\014' (%s)", name );
+		return FAILURE;
+	}
+
+	if (!url_encode && value && strpbrk(value, ",; \t\r\n\013\014") != NULL) { /* man isspace for \013 and \014 */
+		zend_error( E_WARNING, "Cookie values can not contain any of the folllowing ',; \\t\\r\\n\\013\\014' (%s)", value );
+		return FAILURE;
+	}
+
 	len += name_len;
-	if (value) {
+	if (value && url_encode) {
 		int encoded_value_len;
 
 		encoded_value = php_url_encode(value, value_len, &encoded_value_len);
 		len += encoded_value_len;
+	} else if ( value ) {
+		encoded_value = estrdup(value);
+		len += value_len;
 	}
 	if (path) {
 		len += path_len;
@@ -88,6 +94,7 @@ PHPAPI int php_setcookie(char *name, int name_len, char *value, int value_len, t
 	if (domain) {
 		len += domain_len;
 	}
+
 	cookie = emalloc(len + 100);
 
 	if (value && value_len == 0) {
@@ -96,16 +103,16 @@ PHPAPI int php_setcookie(char *name, int name_len, char *value, int value_len, t
 		 * so in order to force cookies to be deleted, even on MSIE, we
 		 * pick an expiry date 1 year and 1 second in the past
 		 */
-		t = time(NULL) - 31536001;
-		dt = php_std_date(t TSRMLS_CC);
-		sprintf(cookie, "Set-Cookie: %s=deleted; expires=%s", name, dt);
+		time_t t = time(NULL) - 31536001;
+		dt = php_format_date("D, d-M-Y H:i:s T", sizeof("D, d-M-Y H:i:s T")-1, t, 0 TSRMLS_CC);
+		snprintf(cookie, len + 100, "Set-Cookie: %s=deleted; expires=%s", name, dt);
 		efree(dt);
 	} else {
-		sprintf(cookie, "Set-Cookie: %s=%s", name, value ? encoded_value : "");
+		snprintf(cookie, len + 100, "Set-Cookie: %s=%s", name, value ? encoded_value : "");
 		if (expires > 0) {
-			strcat(cookie, "; expires=");
-			dt = php_std_date(expires TSRMLS_CC);
-			strcat(cookie, dt);
+			strlcat(cookie, "; expires=", len + 100);
+			dt = php_format_date("D, d-M-Y H:i:s T", sizeof("D, d-M-Y H:i:s T")-1, expires, 0 TSRMLS_CC);
+			strlcat(cookie, dt, len + 100);
 			efree(dt);
 		}
 	}
@@ -115,15 +122,18 @@ PHPAPI int php_setcookie(char *name, int name_len, char *value, int value_len, t
 	}
 
 	if (path && path_len > 0) {
-		strcat(cookie, "; path=");
-		strcat(cookie, path);
+		strlcat(cookie, "; path=", len + 100);
+		strlcat(cookie, path, len + 100);
 	}
 	if (domain && domain_len > 0) {
-		strcat(cookie, "; domain=");
-		strcat(cookie, domain);
+		strlcat(cookie, "; domain=", len + 100);
+		strlcat(cookie, domain, len + 100);
 	}
 	if (secure) {
-		strcat(cookie, "; secure");
+		strlcat(cookie, "; secure", len + 100);
+	}
+	if (httponly) {
+		strlcat(cookie, "; httponly", len + 100);
 	}
 
 	ctr.line = cookie;
@@ -136,22 +146,45 @@ PHPAPI int php_setcookie(char *name, int name_len, char *value, int value_len, t
 
 
 /* php_set_cookie(name, value, expires, path, domain, secure) */
-/* {{{ proto bool setcookie(string name [, string value [, int expires [, string path [, string domain [, bool secure]]]]])
+/* {{{ proto bool setcookie(string name [, string value [, int expires [, string path [, string domain [, bool secure[, bool httponly]]]]]])
    Send a cookie */
 PHP_FUNCTION(setcookie)
 {
 	char *name, *value = NULL, *path = NULL, *domain = NULL;
 	long expires = 0;
-	zend_bool secure = 0;
-	int name_len, value_len, path_len, domain_len;
+	zend_bool secure = 0, httponly = 0;
+	int name_len, value_len = 0, path_len = 0, domain_len = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|slssb", &name,
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|slssbb", &name,
 							  &name_len, &value, &value_len, &expires, &path,
-							  &path_len, &domain, &domain_len, &secure) == FAILURE) {
+							  &path_len, &domain, &domain_len, &secure, &httponly) == FAILURE) {
 		return;
 	}
 
-	if (php_setcookie(name, name_len, value, value_len, expires, path, path_len, domain, domain_len, secure TSRMLS_CC) == SUCCESS) {
+	if (php_setcookie(name, name_len, value, value_len, expires, path, path_len, domain, domain_len, secure, 1, httponly TSRMLS_CC) == SUCCESS) {
+		RETVAL_TRUE;
+	} else {
+		RETVAL_FALSE;
+	}
+}
+/* }}} */
+
+/* {{{ proto bool setrawcookie(string name [, string value [, int expires [, string path [, string domain [, bool secure[, bool httponly]]]]]])
+   Send a cookie with no url encoding of the value */
+PHP_FUNCTION(setrawcookie)
+{
+	char *name, *value = NULL, *path = NULL, *domain = NULL;
+	long expires = 0;
+	zend_bool secure = 0, httponly = 0;
+	int name_len, value_len = 0, path_len = 0, domain_len = 0;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|slssbb", &name,
+							  &name_len, &value, &value_len, &expires, &path,
+							  &path_len, &domain, &domain_len, &secure, &httponly) == FAILURE) {
+		return;
+	}
+
+	if (php_setcookie(name, name_len, value, value_len, expires, path, path_len, domain, domain_len, secure, 0, httponly TSRMLS_CC) == SUCCESS) {
 		RETVAL_TRUE;
 	} else {
 		RETVAL_FALSE;
@@ -195,6 +228,33 @@ PHP_FUNCTION(headers_sent)
 	} else {
 		RETURN_FALSE;
 	}
+}
+/* }}} */
+
+/* {{{ php_head_apply_header_list_to_hash
+   Turn an llist of sapi_header_struct headers into a numerically indexed zval hash */
+static void php_head_apply_header_list_to_hash(void *data, void *arg TSRMLS_DC)
+{
+	sapi_header_struct *sapi_header = (sapi_header_struct *)data;
+
+	if (arg && sapi_header) {
+		add_next_index_string((zval *)arg, (char *)(sapi_header->header), 1);
+	}
+}
+
+/* {{{ proto array headers_list(void)
+   Return list of headers to be sent / already sent */
+PHP_FUNCTION(headers_list)
+{
+	if (ZEND_NUM_ARGS() > 0) {
+		WRONG_PARAM_COUNT;
+	}
+
+	if (!&SG(sapi_headers).headers) {
+		RETURN_FALSE;
+	}
+	array_init(return_value);
+	zend_llist_apply_with_argument(&SG(sapi_headers).headers, php_head_apply_header_list_to_hash, return_value TSRMLS_CC);
 }
 /* }}} */
 

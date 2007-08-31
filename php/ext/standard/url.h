@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -15,7 +15,7 @@
    | Author: Jim Winstead <jimw@php.net>                                  |
    +----------------------------------------------------------------------+
  */
-/* $Id: url.h,v 1.13.8.2 2004/09/22 00:51:51 iliaa Exp $ */
+/* $Id: url.h,v 1.20.2.2.2.1 2007/01/01 09:36:09 sebastian Exp $ */
 
 #ifndef URL_H
 #define URL_H
@@ -36,14 +36,24 @@ PHPAPI php_url *php_url_parse(char const *str);
 PHPAPI php_url *php_url_parse_ex(char const *str, int length);
 PHPAPI int php_url_decode(char *str, int len); /* return value: length of decoded string */
 PHPAPI int php_raw_url_decode(char *str, int len); /* return value: length of decoded string */
-PHPAPI char *php_url_encode(char *s, int len, int *new_length);
-PHPAPI char *php_raw_url_encode(char *s, int len, int *new_length);
+PHPAPI char *php_url_encode(char const *s, int len, int *new_length);
+PHPAPI char *php_raw_url_encode(char const *s, int len, int *new_length);
 
 PHP_FUNCTION(parse_url);
 PHP_FUNCTION(urlencode);
 PHP_FUNCTION(urldecode);
 PHP_FUNCTION(rawurlencode);
 PHP_FUNCTION(rawurldecode);
+PHP_FUNCTION(get_headers);
+
+#define PHP_URL_SCHEME 0
+#define PHP_URL_HOST 1
+#define PHP_URL_PORT 2
+#define PHP_URL_USER 3
+#define PHP_URL_PASS 4
+#define PHP_URL_PATH 5
+#define PHP_URL_QUERY 6
+#define PHP_URL_FRAGMENT 7
 
 #endif /* URL_H */
 

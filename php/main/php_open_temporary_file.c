@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_open_temporary_file.c,v 1.18.2.9 2004/03/29 21:28:47 wez Exp $ */
+/* $Id: php_open_temporary_file.c,v 1.34.2.1.2.10 2007/08/10 10:13:15 tony2001 Exp $ */
 
 #include "php.h"
 
@@ -26,24 +26,16 @@
 #include <fcntl.h>
 
 #ifdef PHP_WIN32
-#include <windows.h>
-#include <winsock.h>
 #define O_RDONLY _O_RDONLY
 #include "win32/param.h"
 #include "win32/winutil.h"
 #elif defined(NETWARE)
 #ifdef USE_WINSOCK
-/*#include <ws2nlm.h>*/
 #include <novsock2.h>
 #else
 #include <sys/socket.h>
 #endif
-#ifdef NEW_LIBC
 #include <sys/param.h>
-#else
-#include "netware/param.h"
-#endif
-#include "netware/mktemp.h"
 #else
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -106,6 +98,8 @@ static int php_do_open_temporary_file(const char *path, const char *pfx, char **
 {
 	char *trailing_slash;
 	char *opened_path;
+	char cwd[MAXPATHLEN];
+	cwd_state new_state;
 	int fd = -1;
 #ifndef HAVE_MKSTEMP
 	int open_flags = O_CREAT | O_TRUNC | O_RDWR
@@ -114,38 +108,41 @@ static int php_do_open_temporary_file(const char *path, const char *pfx, char **
 #endif
 		;
 #endif
-#ifdef NETWARE
-    char *file_path = NULL;
-#endif
 
-	if (!path) {
+	if (!path || !path[0]) {
 		return -1;
 	}
 
-	if (!(opened_path = emalloc(MAXPATHLEN))) {
+	if (!VCWD_GETCWD(cwd, MAXPATHLEN)) {
+		cwd[0] = '\0';
+	}
+
+	new_state.cwd = strdup(cwd);
+	new_state.cwd_length = strlen(cwd);
+
+	if (virtual_file_ex(&new_state, path, NULL, CWD_REALPATH)) {
+		free(new_state.cwd);
 		return -1;
 	}
 
-	if (IS_SLASH(path[strlen(path)-1])) {
+	if (IS_SLASH(new_state.cwd[new_state.cwd_length - 1])) {
 		trailing_slash = "";
 	} else {
 		trailing_slash = "/";
 	}
 
-	(void)snprintf(opened_path, MAXPATHLEN, "%s%s%sXXXXXX", path, trailing_slash, pfx);
+	if (spprintf(&opened_path, 0, "%s%s%sXXXXXX", new_state.cwd, trailing_slash, pfx) >= MAXPATHLEN) {
+		efree(opened_path);
+		free(new_state.cwd);
+		return -1;
+	}
 
 #ifdef PHP_WIN32
-	if (GetTempFileName(path, pfx, 0, opened_path)) {
+	if (GetTempFileName(new_state.cwd, pfx, 0, opened_path)) {
 		/* Some versions of windows set the temp file to be read-only,
 		 * which means that opening it will fail... */
 		VCWD_CHMOD(opened_path, 0600);
 		fd = VCWD_OPEN_MODE(opened_path, open_flags, 0600);
-	}
-#elif defined(NETWARE)
-	/* Using standard mktemp() implementation for NetWare */
-	file_path = mktemp(opened_path);
-	if (file_path) {
-		fd = VCWD_OPEN(file_path, open_flags);
 	}
 #elif defined(HAVE_MKSTEMP)
 	fd = mkstemp(opened_path);
@@ -159,18 +156,27 @@ static int php_do_open_temporary_file(const char *path, const char *pfx, char **
 	} else {
 		*opened_path_p = opened_path;
 	}
+	free(new_state.cwd);
 	return fd;
 }
 /* }}} */
+
+/* Cache the chosen temporary directory. */
+static char* temporary_directory;
+
+PHPAPI void php_shutdown_temporary_directory(void)
+{
+	if (temporary_directory) {
+		free(temporary_directory);
+		temporary_directory = NULL;
+	}
+}
 
 /*
  *  Determine where to place temporary files.
  */
 PHPAPI const char* php_get_temporary_directory(void)
 {
-	/* Cache the chosen temporary directory. */
-	static char* temporary_directory;
-
 	/* Did we determine the temporary directory already? */
 	if (temporary_directory) {
 		return temporary_directory;
@@ -201,12 +207,12 @@ PHPAPI const char* php_get_temporary_directory(void)
 #ifdef P_tmpdir
 	/* Use the standard default temporary directory. */
 	if (P_tmpdir) {
-		temporary_directory = P_tmpdir;
+		temporary_directory = strdup(P_tmpdir);
 		return temporary_directory;
 	}
 #endif
 	/* Shouldn't ever(!) end up here ... last ditch default. */
-	temporary_directory = "/tmp";
+	temporary_directory = strdup("/tmp");
 	return temporary_directory;
 #endif
 }
@@ -218,9 +224,10 @@ PHPAPI const char* php_get_temporary_directory(void)
  * This function should do its best to return a file pointer to a newly created
  * unique file, on every platform.
  */
-PHPAPI int php_open_temporary_fd(const char *dir, const char *pfx, char **opened_path_p TSRMLS_DC)
+PHPAPI int php_open_temporary_fd_ex(const char *dir, const char *pfx, char **opened_path_p, zend_bool open_basedir_check TSRMLS_DC)
 {
 	int fd;
+	const char *temp_dir;
 
 	if (!pfx) {
 		pfx = "tmp.";
@@ -229,13 +236,29 @@ PHPAPI int php_open_temporary_fd(const char *dir, const char *pfx, char **opened
 		*opened_path_p = NULL;
 	}
 
+	if (!dir || *dir == '\0') {
+def_tmp:
+		temp_dir = php_get_temporary_directory();
+
+		if (temp_dir && *temp_dir != '\0' && (!open_basedir_check || !php_check_open_basedir(temp_dir TSRMLS_CC))) {
+			return php_do_open_temporary_file(temp_dir, pfx, opened_path_p TSRMLS_CC);
+		} else {
+			return -1;
+		}
+	}
+
 	/* Try the directory given as parameter. */
 	fd = php_do_open_temporary_file(dir, pfx, opened_path_p TSRMLS_CC);
 	if (fd == -1) {
 		/* Use default temporary directory. */
-		fd = php_do_open_temporary_file(php_get_temporary_directory(), pfx, opened_path_p TSRMLS_CC);
+		goto def_tmp;
 	}
 	return fd;
+}
+
+PHPAPI int php_open_temporary_fd(const char *dir, const char *pfx, char **opened_path_p TSRMLS_DC)
+{
+	return php_open_temporary_fd_ex(dir, pfx, opened_path_p, 0 TSRMLS_CC);
 }
 
 PHPAPI FILE *php_open_temporary_file(const char *dir, const char *pfx, char **opened_path_p TSRMLS_DC)

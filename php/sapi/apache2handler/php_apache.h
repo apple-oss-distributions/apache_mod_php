@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_apache.h,v 1.1.2.3 2003/03/10 03:17:04 sniper Exp $ */
+/* $Id: php_apache.h,v 1.8.2.1.2.2 2007/01/01 09:36:12 sebastian Exp $ */
 
 #ifndef PHP_APACHE_H
 #define PHP_APACHE_H
@@ -26,7 +26,7 @@
 #include "http_core.h"
 
 /* Declare this so we can get to it from outside the sapi_apache2.c file */
-extern module AP_MODULE_DECLARE_DATA php4_module;
+extern module AP_MODULE_DECLARE_DATA php5_module;
 
 /* A way to specify the location of the php.ini dir in an apache directive */
 extern char *apache2_php_ini_path_override;
@@ -44,6 +44,8 @@ typedef struct php_struct {
 #endif
 	/* Whether or not we've processed PHP in the output filters yet. */
 	int request_processed;
+	/* final content type */
+	char *content_type;
 } php_struct;
 
 void *merge_php_config(apr_pool_t *p, void *base_conf, void *new_conf);
@@ -51,6 +53,7 @@ void *create_php_config(apr_pool_t *p, char *dummy);
 char *get_php_config(void *conf, char *name, size_t name_len);
 void apply_config(void *);
 extern const command_rec php_dir_cmds[];
+void php_ap2_register_hook(apr_pool_t *p);
 
 #define APR_ARRAY_FOREACH_OPEN(arr, key, val) 		\
 {													\

@@ -1,13 +1,13 @@
 /* 
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -17,14 +17,9 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_scandir.c,v 1.2.2.7 2005/01/09 21:05:31 sniper Exp $ */
+/* $Id: php_scandir.c,v 1.12.2.1.2.5 2007/01/01 09:36:11 sebastian Exp $ */
 
-#ifdef PHP_WIN32
-#include "config.w32.h"
-#else
-#include <php_config.h>
-#endif
-
+#include "php.h"
 #include "php_scandir.h"
 
 #ifdef HAVE_SYS_TYPES_H
@@ -38,11 +33,14 @@
 #ifndef HAVE_SCANDIR
 
 #ifdef PHP_WIN32
+#include "win32/param.h"
 #include "win32/readdir.h"
 #endif  
 
 #include <stdlib.h>
+#ifndef NETWARE
 #include <search.h>
+#endif
 
 #endif /* HAVE_SCANDIR */
 
@@ -63,9 +61,10 @@ int php_scandir(const char *dirname, struct dirent **namelist[], int (*selector)
 {
 	DIR *dirp = NULL;
 	struct dirent **vector = NULL;
-	struct dirent *dp = NULL;
 	int vector_size = 0;
 	int nfiles = 0;
+	char entry[sizeof(struct dirent)+MAXPATHLEN];
+	struct dirent *dp = (struct dirent *)&entry;
 
 	if (namelist == NULL) {
 		return -1;
@@ -75,7 +74,7 @@ int php_scandir(const char *dirname, struct dirent **namelist[], int (*selector)
 		return -1;
 	}
 
-	while ((dp = readdir(dirp)) != NULL) {
+	while (!php_readdir_r(dirp, (struct dirent *)entry, &dp) && dp) {
 		int dsize = 0;
 		struct dirent *newdp = NULL;
 

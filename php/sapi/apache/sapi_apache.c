@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,10 +16,10 @@
    | (with helpful hints from Dean Gaudet <dgaudet@arctic.org>            |
    | PHP 4.0 patches by:                                                  |
    | Zeev Suraski <zeev@zend.com>                                         |
-   | Stig Bakken <ssb@fast.no>                                            |
+   | Stig Bakken <ssb@php.net>                                            |
    +----------------------------------------------------------------------+
  */
-/* $Id: sapi_apache.c,v 1.40.4.5 2003/05/31 01:37:44 sniper Exp $ */
+/* $Id: sapi_apache.c,v 1.47.2.1.2.1 2007/01/01 09:36:12 sebastian Exp $ */
 
 #include "php_apache_http.h"
 
@@ -28,14 +28,13 @@
 int apache_php_module_main(request_rec *r, int display_source_mode TSRMLS_DC)
 {
 	int retval = OK;	
-	zend_file_handle file_handle = {0};
+	zend_file_handle file_handle;
 
 	if (php_request_startup(TSRMLS_C) == FAILURE) {
 		return FAILURE;
 	}
 	/* sending a file handle to another dll is not working
-	// so let zend open it. 
-	*/
+	   so let zend open it. */
 	
 	if (display_source_mode) {
 		zend_syntax_highlighter_ini syntax_highlighter_ini;

@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,102 +16,105 @@
    +----------------------------------------------------------------------+
 */
 
-/* $Id: md5.c,v 1.28.4.1 2002/12/31 16:35:31 sebastian Exp $ */
+/* $Id: md5.c,v 1.39.2.1.2.4 2007/05/27 15:29:38 nlopess Exp $ */
 
 /* 
  * md5.c - Copyright 1997 Lachlan Roche 
  * md5_file() added by Alessandro Astarita <aleast@capri.it>
  */
 
-#include <stdio.h>
 #include "php.h"
-
 #include "md5.h"
 
 PHPAPI void make_digest(char *md5str, unsigned char *digest)
 {
-	int i;
-
-	for (i = 0; i < 16; i++) {
-		sprintf(md5str, "%02x", digest[i]);
-		md5str += 2;
-	}
-
-	*md5str = '\0';
+	make_digest_ex(md5str, digest, 16);
 }
 
-/* {{{ proto string md5(string str)
+PHPAPI void make_digest_ex(char *md5str, unsigned char *digest, int len)
+{
+	static const char hexits[17] = "0123456789abcdef";
+	int i;
+
+	for (i = 0; i < len; i++) {
+		md5str[i * 2]       = hexits[digest[i] >> 4];
+		md5str[(i * 2) + 1] = hexits[digest[i] &  0x0F];
+	}
+	md5str[len * 2] = '\0';
+}
+
+/* {{{ proto string md5(string str, [ bool raw_output])
    Calculate the md5 hash of a string */
 PHP_NAMED_FUNCTION(php_if_md5)
 {
-	zval **arg;
+	char *arg;
+	int arg_len;
+	zend_bool raw_output = 0;
 	char md5str[33];
 	PHP_MD5_CTX context;
 	unsigned char digest[16];
 	
-	if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE) {
-		WRONG_PARAM_COUNT;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|b", &arg, &arg_len, &raw_output) == FAILURE) {
+		return;
 	}
-	convert_to_string_ex(arg);
-
+	
 	md5str[0] = '\0';
 	PHP_MD5Init(&context);
-	PHP_MD5Update(&context, Z_STRVAL_PP(arg), Z_STRLEN_PP(arg));
+	PHP_MD5Update(&context, arg, arg_len);
 	PHP_MD5Final(digest, &context);
-	make_digest(md5str, digest);
-	RETVAL_STRING(md5str, 1);
+	if (raw_output) {
+		RETURN_STRINGL(digest, 16, 1);
+	} else {
+		make_digest_ex(md5str, digest, 16);
+		RETVAL_STRING(md5str, 1);
+	}
+
 }
 /* }}} */
 
-/* {{{ proto string md5_file(string filename)
+/* {{{ proto string md5_file(string filename [, bool raw_output])
    Calculate the md5 hash of given filename */
 PHP_NAMED_FUNCTION(php_if_md5_file)
 {
-	zval          **arg;
+	char          *arg;
+	int           arg_len;
+	zend_bool raw_output = 0;
 	char          md5str[33];
 	unsigned char buf[1024];
 	unsigned char digest[16];
 	PHP_MD5_CTX   context;
 	int           n;
-	FILE          *fp;
+	php_stream    *stream;
 
-	if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE) {
-		WRONG_PARAM_COUNT;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|b", &arg, &arg_len, &raw_output) == FAILURE) {
+		return;
 	}
-
-	convert_to_string_ex(arg);
-
-	if (PG(safe_mode) && (!php_checkuid(Z_STRVAL_PP(arg), NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
-		RETURN_FALSE;
-	}
-
-	if (php_check_open_basedir(Z_STRVAL_PP(arg) TSRMLS_CC)) {
-		RETURN_FALSE;
-	}
-
-	if ((fp = VCWD_FOPEN(Z_STRVAL_PP(arg), "rb")) == NULL) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to open file");
+	
+	stream = php_stream_open_wrapper(arg, "rb", REPORT_ERRORS | ENFORCE_SAFE_MODE, NULL);
+	if (!stream) {
 		RETURN_FALSE;
 	}
 
 	PHP_MD5Init(&context);
 
-	while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+	while ((n = php_stream_read(stream, buf, sizeof(buf))) > 0) {
 		PHP_MD5Update(&context, buf, n);
 	}
 
 	PHP_MD5Final(digest, &context);
 
-	if (ferror(fp)) {
-		fclose(fp);
+	php_stream_close(stream);
+
+	if (n<0) {
 		RETURN_FALSE;
 	}
 
-	fclose(fp);
-
-	make_digest(md5str, digest);
-
-	RETVAL_STRING(md5str, 1);
+	if (raw_output) {
+		RETURN_STRINGL(digest, 16, 1);
+	} else {
+		make_digest_ex(md5str, digest, 16);
+		RETVAL_STRING(md5str, 1);
+	}
 }
 /* }}} */
 

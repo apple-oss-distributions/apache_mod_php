@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: cyr_convert.c,v 1.22.4.2 2003/04/16 22:57:15 moriyoshi Exp $ */
+/* $Id: cyr_convert.c,v 1.27.2.3.2.1 2007/01/01 09:36:08 sebastian Exp $ */
 
 #include <stdlib.h>
 
@@ -47,9 +47,9 @@
 
 typedef unsigned char _cyr_charset_table[512];
 
-/* {{{ const static _cyr_charset_table _cyr_win1251
+/* {{{ static const _cyr_charset_table _cyr_win1251
  */
-const static _cyr_charset_table _cyr_win1251 = {
+static const _cyr_charset_table _cyr_win1251 = {
 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
 16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,
 32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,
@@ -271,7 +271,7 @@ static char * php_convert_cyr_string(unsigned char *str, int length, char from, 
    Convert from one Cyrillic character set to another */
 PHP_FUNCTION(convert_cyr_string)
 {
-    pval **str_arg, **fr_cs, **to_cs;
+    zval **str_arg, **fr_cs, **to_cs;
 	unsigned char *str;
 
     if (ZEND_NUM_ARGS() != 3 || zend_get_parameters_ex(3,&str_arg,&fr_cs, &to_cs)==FAILURE)

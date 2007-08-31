@@ -1,13 +1,13 @@
 /* 
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -17,7 +17,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: caudium.c,v 1.28.2.4 2003/05/31 01:37:44 sniper Exp $ */
+/* $Id: caudium.c,v 1.36.2.1.2.1 2007/01/01 09:36:12 sebastian Exp $ */
 
 #include "php.h"
 #ifdef HAVE_CAUDIUM
@@ -38,7 +38,7 @@
  */
 #define NO_PIKE_SHORTHAND
 
-/* Ok, we are now using Pike level threads to handle PHP4 since
+/* Ok, we are now using Pike level threads to handle PHP5 since
  * the nice th_farm threads aren't working on Linux with glibc 2.2
  * (why this is I don't know).
  */
@@ -79,7 +79,7 @@
 #endif
 
 #ifndef PIKE_THREADS
-#error The PHP4 module requires that your Pike has thread support.
+#error The PHP5 module requires that your Pike has thread support.
 #endif
 
 #undef HIDE_GLOBAL_VARIABLES
@@ -287,7 +287,7 @@ php_caudium_set_header(char *header_name, char *value, char *p)
   struct svalue *s_headermap, *soldval;
   int vallen;
   GET_THIS();
-  //  hval = make_shared_string(value);
+  /*  hval = make_shared_string(value); */
   ind = make_shared_string(" _headers");
   hind = make_shared_binary_string(header_name,
 				   (int)(p - header_name));
@@ -444,7 +444,7 @@ static void php_info_caudium(ZEND_MODULE_INFO_FUNC_ARGS)
 {
   /*  char buf[512]; */
   php_info_print_table_start();
-  php_info_print_table_row(2, "SAPI module version", "$Id: caudium.c,v 1.28.2.4 2003/05/31 01:37:44 sniper Exp $");
+  php_info_print_table_row(2, "SAPI module version", "$Id: caudium.c,v 1.36.2.1.2.1 2007/01/01 09:36:12 sebastian Exp $");
   /*  php_info_print_table_row(2, "Build date", Ns_InfoBuildDate());
       php_info_print_table_row(2, "Config file path", Ns_InfoConfigFile());
       php_info_print_table_row(2, "Error Log path", Ns_InfoErrorLog());
@@ -550,8 +550,7 @@ static sapi_module_struct caudium_sapi_module = {
   php_caudium_sapi_read_cookies,	/* read cookies */
   sapi_caudium_register_variables,	/* register server variables */
   NULL,					/* Log message */
-  NULL,					/* Block interruptions */
-  NULL,					/* Unblock interruptions */
+  NULL,					/* Get request time */
 
   STANDARD_SAPI_MODULE_PROPERTIES
 };
@@ -564,7 +563,7 @@ static sapi_module_struct caudium_sapi_module = {
 static void php_caudium_module_main(php_caudium_request *ureq)
 {
   int res;
-  zend_file_handle file_handle = {0};
+  zend_file_handle file_handle;
 #ifndef USE_PIKE_LEVEL_THREADS
   struct thread_state *state;
   extern struct program *thread_id_prog;
@@ -598,7 +597,7 @@ static void php_caudium_module_main(php_caudium_request *ureq)
   Pike_interpreter.recoveries = NULL;
   call_c_initializers(Pike_interpreter.thread_id);
   state->id=th_self();
-  //  SWAP_OUT_THREAD(OBJ2THREAD(Pike_interpreter.thread_id));
+  /*  SWAP_OUT_THREAD(OBJ2THREAD(Pike_interpreter.thread_id)); */
   num_threads++;
   thread_table_insert(Pike_interpreter.thread_id);
   state->status=THREAD_RUNNING;
@@ -626,7 +625,7 @@ static void php_caudium_module_main(php_caudium_request *ureq)
     SG(request_info).headers_only = 0;
   }
 
-  /* Let PHP4 handle the deconding of the AUTH */
+  /* Let PHP5 handle the deconding of the AUTH */
   php_handle_auth_data(lookup_string_header("HTTP_AUTHORIZATION", NULL), TSRMLS_C);
    /* Swap out this thread and release the interpreter lock to allow
    * Pike threads to run. We wait since the above would otherwise require
@@ -715,10 +714,10 @@ void f_php_caudium_request_handler(INT32 args)
   if(THIS == NULL)
     Pike_error("Out of memory.");
 
-  get_all_args("PHP4.Interpreter->run", args, "%S%m%O%*", &script,
+  get_all_args("PHP5.Interpreter->run", args, "%S%m%O%*", &script,
 	       &request_data, &my_fd_obj, &done_callback);
   if(done_callback->type != PIKE_T_FUNCTION) 
-    Pike_error("PHP4.Interpreter->run: Bad argument 4, expected function.\n");
+    Pike_error("PHP5.Interpreter->run: Bad argument 4, expected function.\n");
   add_ref(request_data);
   add_ref(my_fd_obj);
   add_ref(script);

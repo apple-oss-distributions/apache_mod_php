@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: dbase.c,v 1.60.2.4 2005/02/04 14:29:20 derick Exp $ */
+/* $Id: dbase.c,v 1.74.2.2.2.9 2007/02/25 23:17:12 tony2001 Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -118,33 +118,41 @@ static PHP_MSHUTDOWN_FUNCTION(dbase)
    Opens a dBase-format database file */
 PHP_FUNCTION(dbase_open)
 {
-	pval *dbf_name, *options;
+	zval **dbf_name, **options;
 	dbhead_t *dbh;
 	int handle;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 2 || getParameters(ht, 2, &dbf_name, &options)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 2 || zend_get_parameters_ex(2, &dbf_name, &options) == FAILURE) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_string(dbf_name);
-	convert_to_long(options);
+	convert_to_string_ex(dbf_name);
+	convert_to_long_ex(options);
 
-	if (Z_LVAL_P(options) == 1) {
-		php_error(E_WARNING, "Cannot open %s in write-only mode", Z_STRVAL_P(dbf_name));
-		RETURN_FALSE;
-	}
-	
-	if (PG(safe_mode) && (!php_checkuid(Z_STRVAL_P(dbf_name), NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
-		RETURN_FALSE;
-	}
-	
-	if (php_check_open_basedir(Z_STRVAL_P(dbf_name) TSRMLS_CC)) {
+	if (!Z_STRLEN_PP(dbf_name)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "The filename cannot be empty.");
 		RETURN_FALSE;
 	}
 
-	dbh = dbf_open(Z_STRVAL_P(dbf_name), Z_LVAL_P(options) TSRMLS_CC);
+	if (Z_LVAL_PP(options) == 1) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Cannot open %s in write-only mode", Z_STRVAL_PP(dbf_name));
+		RETURN_FALSE;
+	} else if (Z_LVAL_PP(options) < 0 || Z_LVAL_PP(options) > 3) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Invalid access mode %ld", Z_LVAL_PP(options));
+		RETURN_FALSE;
+	}
+
+	if (PG(safe_mode) && (!php_checkuid(Z_STRVAL_PP(dbf_name), NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
+		RETURN_FALSE;
+	}
+	
+	if (php_check_open_basedir(Z_STRVAL_PP(dbf_name) TSRMLS_CC)) {
+		RETURN_FALSE;
+	}
+
+	dbh = dbf_open(Z_STRVAL_PP(dbf_name), Z_LVAL_PP(options) TSRMLS_CC);
 	if (dbh == NULL) {
-		php_error(E_WARNING, "unable to open database %s", Z_STRVAL_P(dbf_name));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to open database %s", Z_STRVAL_PP(dbf_name));
 		RETURN_FALSE;
 	}
 
@@ -157,22 +165,22 @@ PHP_FUNCTION(dbase_open)
    Closes an open dBase-format database file */
 PHP_FUNCTION(dbase_close)
 {
-	pval *dbh_id;
+	zval **dbh_id;
 	dbhead_t *dbh;
 	int dbh_type;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 1 || getParameters(ht, 1, &dbh_id)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 1 || (zend_get_parameters_ex(1, &dbh_id) == FAILURE)) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	convert_to_long_ex(dbh_id);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
-	zend_list_delete(Z_LVAL_P(dbh_id));
+	zend_list_delete(Z_LVAL_PP(dbh_id));
 	RETURN_TRUE;
 }
 /* }}} */
@@ -181,18 +189,18 @@ PHP_FUNCTION(dbase_close)
    Returns the number of records in the database */
 PHP_FUNCTION(dbase_numrecords)
 {
-	pval *dbh_id;
+	zval **dbh_id;
 	dbhead_t *dbh;
 	int dbh_type;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 1 || getParameters(ht, 1, &dbh_id)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 1 || (zend_get_parameters_ex(1, &dbh_id) == FAILURE)) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	convert_to_long_ex(dbh_id);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
@@ -204,18 +212,18 @@ PHP_FUNCTION(dbase_numrecords)
    Returns the number of fields (columns) in the database */
 PHP_FUNCTION(dbase_numfields)
 {
-	pval *dbh_id;
+	zval **dbh_id;
 	dbhead_t *dbh;
 	int dbh_type;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 1 || getParameters(ht, 1, &dbh_id)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &dbh_id) == FAILURE) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	convert_to_long_ex(dbh_id);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
@@ -227,18 +235,18 @@ PHP_FUNCTION(dbase_numfields)
    Packs the database (deletes records marked for deletion) */
 PHP_FUNCTION(dbase_pack)
 {
-	pval *dbh_id;
+	zval **dbh_id;
 	dbhead_t *dbh;
 	int dbh_type;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 1 || getParameters(ht, 1, &dbh_id)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &dbh_id) == FAILURE) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	convert_to_long_ex(dbh_id);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
@@ -252,7 +260,7 @@ PHP_FUNCTION(dbase_pack)
    Adds a record to the database */
 PHP_FUNCTION(dbase_add_record)
 {
-	pval *dbh_id, *fields, **field;
+	zval **dbh_id, **fields, **field;
 	dbhead_t *dbh;
 	int dbh_type;
 
@@ -262,40 +270,36 @@ PHP_FUNCTION(dbase_add_record)
 	int i;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 2 || getParameters(ht, 2, &dbh_id, &fields)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 2 || zend_get_parameters_ex(2, &dbh_id, &fields) == FAILURE) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	if (Z_TYPE_P(fields) != IS_ARRAY) {
-		php_error(E_WARNING, "Expected array as second parameter");
+	convert_to_long_ex(dbh_id);
+	if (Z_TYPE_PP(fields) != IS_ARRAY) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Expected array as second parameter");
 		RETURN_FALSE;
 	}
 
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
-	num_fields = zend_hash_num_elements(Z_ARRVAL_P(fields));
+	num_fields = zend_hash_num_elements(Z_ARRVAL_PP(fields));
 
 	if (num_fields != dbh->db_nfields) {
-		php_error(E_WARNING, "Wrong number of fields specified");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Wrong number of fields specified");
 		RETURN_FALSE;
 	}
 
 	cp = t_cp = (char *)emalloc(dbh->db_rlen + 1);
-	if (!cp) {
-		php_error(E_WARNING, "unable to allocate memory");
-		RETURN_FALSE;
-	}
 	*t_cp++ = VALID_RECORD;
 
 	dbf = dbh->db_fields;
 	for (i = 0, cur_f = dbf; cur_f < &dbf[num_fields]; i++, cur_f++) {
 		zval tmp;
-		if (zend_hash_index_find(Z_ARRVAL_P(fields), i, (void **)&field) == FAILURE) {
-			php_error(E_WARNING, "unexpected error");
+		if (zend_hash_index_find(Z_ARRVAL_PP(fields), i, (void **)&field) == FAILURE) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "unexpected error");
 			efree(cp);
 			RETURN_FALSE;
 		}
@@ -310,7 +314,7 @@ PHP_FUNCTION(dbase_add_record)
 
 	dbh->db_records++;
 	if (put_dbf_record(dbh, dbh->db_records, cp) < 0) {
-		php_error(E_WARNING, "unable to put record at %ld", dbh->db_records);
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to put record at %ld", dbh->db_records);
 		efree(cp);
 		RETURN_FALSE;
 	}
@@ -326,7 +330,7 @@ PHP_FUNCTION(dbase_add_record)
    Replaces a record to the database */
 PHP_FUNCTION(dbase_replace_record)
 {
-	pval *dbh_id, *fields, **field, *recnum;
+	zval **dbh_id, **fields, **field, **recnum;
 	dbhead_t *dbh;
 	int dbh_type;
 
@@ -336,40 +340,36 @@ PHP_FUNCTION(dbase_replace_record)
 	int i;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 3 || getParameters(ht, 3, &dbh_id, &fields, &recnum)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 3 || zend_get_parameters_ex(3, &dbh_id, &fields, &recnum) == FAILURE) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	convert_to_long(recnum);
-	if (Z_TYPE_P(fields) != IS_ARRAY) {
-		php_error(E_WARNING, "Expected array as second parameter");
+	convert_to_long_ex(dbh_id);
+	convert_to_long_ex(recnum);
+	if (Z_TYPE_PP(fields) != IS_ARRAY) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Expected array as second parameter");
 		RETURN_FALSE;
 	}
 
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
-	num_fields = zend_hash_num_elements(Z_ARRVAL_P(fields));
+	num_fields = zend_hash_num_elements(Z_ARRVAL_PP(fields));
 
 	if (num_fields != dbh->db_nfields) {
-		php_error(E_WARNING, "Wrong number of fields specified");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Wrong number of fields specified");
 		RETURN_FALSE;
 	}
 
 	cp = t_cp = (char *)emalloc(dbh->db_rlen + 1);
-	if (!cp) {
-		php_error(E_WARNING, "unable to allocate memory");
-		RETURN_FALSE;
-	}
 	*t_cp++ = VALID_RECORD;
 
 	dbf = dbh->db_fields;
 	for (i = 0, cur_f = dbf; cur_f < &dbf[num_fields]; i++, cur_f++) {
-		if (zend_hash_index_find(Z_ARRVAL_P(fields), i, (void **)&field) == FAILURE) {
-			php_error(E_WARNING, "unexpected error");
+		if (zend_hash_index_find(Z_ARRVAL_PP(fields), i, (void **)&field) == FAILURE) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "unexpected error");
 			efree(cp);
 			RETURN_FALSE;
 		}
@@ -378,8 +378,8 @@ PHP_FUNCTION(dbase_replace_record)
 		t_cp += cur_f->db_flen;
 	}
 
-	if (put_dbf_record(dbh, Z_LVAL_P(recnum), cp) < 0) {
-		php_error(E_WARNING, "unable to put record at %ld", dbh->db_records);
+	if (put_dbf_record(dbh, Z_LVAL_PP(recnum), cp) < 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to put record at %ld", dbh->db_records);
 		efree(cp);
 		RETURN_FALSE;
 	}
@@ -395,28 +395,28 @@ PHP_FUNCTION(dbase_replace_record)
    Marks a record to be deleted */
 PHP_FUNCTION(dbase_delete_record)
 {
-	pval *dbh_id, *record;
+	zval **dbh_id, **record;
 	dbhead_t *dbh;
 	int dbh_type;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 2 || getParameters(ht, 2, &dbh_id, &record)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 2 || (zend_get_parameters_ex(2, &dbh_id, &record) == FAILURE)) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	convert_to_long(record);
+	convert_to_long_ex(dbh_id);
+	convert_to_long_ex(record);
 
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
-	if (del_dbf_record(dbh, Z_LVAL_P(record)) < 0) {
-		if (Z_LVAL_P(record) > dbh->db_records) {
-			php_error(E_WARNING, "record %d out of bounds", Z_LVAL_P(record));
+	if (del_dbf_record(dbh, Z_LVAL_PP(record)) < 0) {
+		if (Z_LVAL_PP(record) > dbh->db_records) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "record %ld out of bounds", Z_LVAL_PP(record));
 		} else {
-			php_error(E_WARNING, "unable to delete record %d", Z_LVAL_P(record));
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to delete record %ld", Z_LVAL_PP(record));
 		}
 		RETURN_FALSE;
 	}
@@ -430,7 +430,7 @@ PHP_FUNCTION(dbase_delete_record)
  */  
 static void php_dbase_get_record(INTERNAL_FUNCTION_PARAMETERS, int assoc)
 {
-	pval *dbh_id, *record;
+	zval **dbh_id, **record;
 	dbhead_t *dbh;
 	int dbh_type;
 	dbfield_t *dbf, *cur_f;
@@ -440,28 +440,26 @@ static void php_dbase_get_record(INTERNAL_FUNCTION_PARAMETERS, int assoc)
 	int errno_save;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 2 || getParameters(ht, 2, &dbh_id, &record)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 2 || (zend_get_parameters_ex(2, &dbh_id, &record) == FAILURE)) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_long(dbh_id);
-	convert_to_long(record);
+	convert_to_long_ex(dbh_id);
+	convert_to_long_ex(record);
 
-	dbh = zend_list_find(Z_LVAL_P(dbh_id), &dbh_type);
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
 	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
-		php_error(E_WARNING, "Unable to find database for identifier %d", Z_LVAL_P(dbh_id));
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
 		RETURN_FALSE;
 	}
 
-	if ((data = get_dbf_record(dbh, Z_LVAL_P(record))) == NULL) {
-		php_error(E_WARNING, "Tried to read bad record %d", Z_LVAL_P(record));
+	if ((data = get_dbf_record(dbh, Z_LVAL_PP(record))) == NULL) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Tried to read bad record %ld", Z_LVAL_PP(record));
 		RETURN_FALSE;
 	}
 
 	dbf = dbh->db_fields;
 
-	if (array_init(return_value) == FAILURE) {
-		RETURN_FALSE;
-	}
+	array_init(return_value);
 
 	fnp = NULL;
 	for (cur_f = dbf; cur_f < &dbf[dbh->db_nfields]; cur_f++) {
@@ -511,6 +509,13 @@ static void php_dbase_get_record(INTERNAL_FUNCTION_PARAMETERS, int assoc)
 					} else {
 						add_assoc_double(return_value, cur_f->db_fname, atof(str_value));
 					}
+				}
+				break;
+			case 'F':
+				if (!assoc) {
+					add_next_index_double(return_value, atof(str_value));
+				} else {
+					add_assoc_double(return_value, cur_f->db_fname, atof(str_value));
 				}
 				break;
 			case 'L':	/* we used to FALL THROUGH, but now we check for T/Y and F/N
@@ -582,7 +587,7 @@ PHP_FUNCTION(dbase_get_record_with_names)
    Creates a new dBase-format database file */
 PHP_FUNCTION(dbase_create)
 {
-	pval *filename, *fields, **field, **value;
+	zval **filename, **fields, **field, **value;
 	int fd;
 	dbhead_t *dbh;
 
@@ -591,37 +596,42 @@ PHP_FUNCTION(dbase_create)
 	int i, rlen, handle;
 	DBase_TLS_VARS;
 
-	if (ZEND_NUM_ARGS() != 2 || getParameters(ht, 2, &filename, &fields)==FAILURE) {
+	if (ZEND_NUM_ARGS() != 2 || (zend_get_parameters_ex(2, &filename, &fields) == FAILURE)) {
 		WRONG_PARAM_COUNT;
 	}
-	convert_to_string(filename);
+	convert_to_string_ex(filename);
 
-	if (Z_TYPE_P(fields) != IS_ARRAY) {
-		php_error(E_WARNING, "Expected array as second parameter");
+	if (Z_TYPE_PP(fields) != IS_ARRAY) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Expected array as second parameter");
 		RETURN_FALSE;
 	}
 
-	if (PG(safe_mode) && (!php_checkuid(Z_STRVAL_P(filename), NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
+	if (PG(safe_mode) && (!php_checkuid(Z_STRVAL_PP(filename), NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
 		RETURN_FALSE;
 	}
 	
-	if (php_check_open_basedir(Z_STRVAL_P(filename) TSRMLS_CC)) {
+	if (php_check_open_basedir(Z_STRVAL_PP(filename) TSRMLS_CC)) {
 		RETURN_FALSE;
 	}
 
-	if ((fd = VCWD_OPEN_MODE(Z_STRVAL_P(filename), O_BINARY|O_RDWR|O_CREAT, 0644)) < 0) {
-		php_error(E_WARNING, "Unable to create database (%d): %s", errno, strerror(errno));
+	if ((fd = VCWD_OPEN_MODE(Z_STRVAL_PP(filename), O_BINARY|O_RDWR|O_CREAT, 0644)) < 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to create database (%d): %s", errno, strerror(errno));
 		RETURN_FALSE;
 	}
 
-	num_fields = zend_hash_num_elements(Z_ARRVAL_P(fields));
+	num_fields = zend_hash_num_elements(Z_ARRVAL_PP(fields));
+
+	if (num_fields <= 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to create database without fields");
+		RETURN_FALSE;
+	}
 
 	/* have to use regular malloc() because this gets free()d by
 	   code in the dbase library */
 	dbh = (dbhead_t *)malloc(sizeof(dbhead_t));
 	dbf = (dbfield_t *)malloc(sizeof(dbfield_t) * num_fields);
 	if (!dbh || !dbf) {
-		php_error(E_WARNING, "Unable to allocate memory for header info");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to allocate memory for header info");
 		RETURN_FALSE;
 	}
 	
@@ -651,27 +661,27 @@ PHP_FUNCTION(dbase_create)
 
 	for (i = 0, cur_f = dbf; i < num_fields; i++, cur_f++) {
 		/* look up the first field */
-		if (zend_hash_index_find(Z_ARRVAL_P(fields), i, (void **)&field) == FAILURE) {
-			php_error(E_WARNING, "unable to find field %d", i);
+		if (zend_hash_index_find(Z_ARRVAL_PP(fields), i, (void **)&field) == FAILURE) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to find field %d", i);
 			free_dbf_head(dbh);
 			RETURN_FALSE;
 		}
 
 		if (Z_TYPE_PP (field) != IS_ARRAY) {
-			php_error(E_WARNING, "second parameter must be array of arrays");
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "second parameter must be array of arrays");
 			free_dbf_head(dbh);
 			RETURN_FALSE;
 		}
 
 		/* field name */
 		if (zend_hash_index_find(Z_ARRVAL_PP(field), 0, (void **)&value) == FAILURE) {
-			php_error(E_WARNING, "expected field name as first element of list in field %d", i);
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "expected field name as first element of list in field %d", i);
 			free_dbf_head(dbh);
 			RETURN_FALSE;
 		}
 		convert_to_string_ex(value);
 		if (Z_STRLEN_PP(value) > 10 || Z_STRLEN_PP(value) == 0) {
-			php_error(E_WARNING, "invalid field name '%s' (must be non-empty and less than or equal to 10 characters)", Z_STRVAL_PP(value));
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "invalid field name '%s' (must be non-empty and less than or equal to 10 characters)", Z_STRVAL_PP(value));
 			free_dbf_head(dbh);
 			RETURN_FALSE;
 		}
@@ -679,7 +689,7 @@ PHP_FUNCTION(dbase_create)
 
 		/* field type */
 		if (zend_hash_index_find(Z_ARRVAL_PP (field), 1, (void **)&value) == FAILURE) {
-			php_error(E_WARNING, "expected field type as second element of list in field %d", i);
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "expected field type as second element of list in field %d", i);
 			RETURN_FALSE;
 		}
 		convert_to_string_ex(value);
@@ -700,11 +710,14 @@ PHP_FUNCTION(dbase_create)
 		case 'D':
 			cur_f->db_flen = 8;
 			break;
+		case 'F':
+			cur_f->db_flen = 20;
+			break;
 		case 'N':
 		case 'C':
 			/* field length */
 			if (zend_hash_index_find(Z_ARRVAL_PP (field), 2, (void **)&value) == FAILURE) {
-				php_error(E_WARNING, "expected field length as third element of list in field %d", i);
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "expected field length as third element of list in field %d", i);
 				free_dbf_head(dbh);
 				RETURN_FALSE;
 			}
@@ -713,7 +726,7 @@ PHP_FUNCTION(dbase_create)
 
 			if (cur_f->db_type == 'N') {
 				if (zend_hash_index_find(Z_ARRVAL_PP (field), 3, (void **)&value) == FAILURE) {
-					php_error(E_WARNING, "expected field precision as fourth element of list in field %d", i);
+					php_error_docref(NULL TSRMLS_CC, E_WARNING, "expected field precision as fourth element of list in field %d", i);
 					free_dbf_head(dbh);
 					RETURN_FALSE;
 				}
@@ -722,7 +735,9 @@ PHP_FUNCTION(dbase_create)
 			}
 			break;
 		default:
-			php_error(E_WARNING, "unknown field type '%c'", cur_f->db_type);
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "unknown field type '%c'", cur_f->db_type);
+			free_dbf_head(dbh);
+			RETURN_FALSE;
 		}
 		cur_f->db_foffset = rlen;
 		rlen += cur_f->db_flen;
@@ -738,22 +753,162 @@ PHP_FUNCTION(dbase_create)
 }
 /* }}} */
 
+/* {{{ arginfo */
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_open, 0)
+	ZEND_ARG_INFO(0, name)
+	ZEND_ARG_INFO(0, mode)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_close, 0)
+	ZEND_ARG_INFO(0, identifier)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_numrecords, 0)
+	ZEND_ARG_INFO(0, identifier)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_numfields, 0)
+	ZEND_ARG_INFO(0, identifier)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_pack, 0)
+	ZEND_ARG_INFO(0, identifier)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_add_record, 0)
+	ZEND_ARG_INFO(0, identifier)
+	ZEND_ARG_INFO(0, data) /* ARRAY_INFO(0, data, 0) */
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_replace_record, 0)
+	ZEND_ARG_INFO(0, identifier)
+	ZEND_ARG_INFO(0, data) /* ARRAY_INFO(0, data, 0) */
+	ZEND_ARG_INFO(0, recnum)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_delete_record, 0)
+	ZEND_ARG_INFO(0, identifier)
+	ZEND_ARG_INFO(0, record)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_get_record, 0)
+	ZEND_ARG_INFO(0, identifier)
+	ZEND_ARG_INFO(0, record)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_get_record_with_names, 0)
+	ZEND_ARG_INFO(0, identifier)
+	ZEND_ARG_INFO(0, record)
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_create, 0)
+	ZEND_ARG_INFO(0, filename)
+	ZEND_ARG_INFO(0, fields) /* ARRAY_INFO(0, fields, 0) */
+ZEND_END_ARG_INFO()
+
+static
+ZEND_BEGIN_ARG_INFO(arginfo_dbase_get_header_info, 0)
+	ZEND_ARG_INFO(0, database_handle)
+ZEND_END_ARG_INFO()
+
+/* }}} */
+
 /* {{{ dbase_functions[]
  */
-function_entry dbase_functions[] = {
-	PHP_FE(dbase_open,								NULL)
-	PHP_FE(dbase_create,							NULL)
-	PHP_FE(dbase_close,								NULL)
-	PHP_FE(dbase_numrecords,						NULL)
-	PHP_FE(dbase_numfields,							NULL)
-	PHP_FE(dbase_add_record,						NULL)
-	PHP_FE(dbase_replace_record,					NULL)
-	PHP_FE(dbase_get_record,						NULL)
-	PHP_FE(dbase_get_record_with_names,				NULL)
-	PHP_FE(dbase_delete_record,						NULL)
-	PHP_FE(dbase_pack,								NULL)
+zend_function_entry dbase_functions[] = {
+	PHP_FE(dbase_open,								arginfo_dbase_open)
+	PHP_FE(dbase_create,							arginfo_dbase_create)
+	PHP_FE(dbase_close,								arginfo_dbase_close)
+	PHP_FE(dbase_numrecords,						arginfo_dbase_numrecords)
+	PHP_FE(dbase_numfields,							arginfo_dbase_numfields)
+	PHP_FE(dbase_add_record,						arginfo_dbase_add_record)
+	PHP_FE(dbase_replace_record,					arginfo_dbase_replace_record)
+	PHP_FE(dbase_get_record,						arginfo_dbase_get_record)
+	PHP_FE(dbase_get_record_with_names,				arginfo_dbase_get_record_with_names)
+	PHP_FE(dbase_delete_record,						arginfo_dbase_delete_record)
+	PHP_FE(dbase_pack,								arginfo_dbase_pack)
+	PHP_FE(dbase_get_header_info,					arginfo_dbase_get_header_info)
 	{NULL, NULL, NULL}
 };
+/* }}} */
+
+/* Added by Zak Greant <zak@php.net> */
+/* {{{ proto array dbase_get_header_info(int database_handle)
+ */
+PHP_FUNCTION(dbase_get_header_info)
+{
+	zval		**dbh_id, *row;
+	dbfield_t	*dbf, *cur_f;
+	dbhead_t	*dbh;
+	int 		dbh_type;
+	DBase_TLS_VARS;	
+
+	if (ZEND_NUM_ARGS() != 1 || (zend_get_parameters_ex(1, &dbh_id) == FAILURE)) {
+		WRONG_PARAM_COUNT;
+	}
+	convert_to_long_ex(dbh_id);
+
+	dbh = zend_list_find(Z_LVAL_PP(dbh_id), &dbh_type);
+	if (!dbh || dbh_type != DBase_GLOBAL(le_dbhead)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find database for identifier %ld", Z_LVAL_PP(dbh_id));
+		RETURN_FALSE;
+	}
+
+	array_init(return_value);
+
+	dbf = dbh->db_fields;
+	for (cur_f = dbf; cur_f < &dbh->db_fields[dbh->db_nfields]; ++cur_f) {
+		MAKE_STD_ZVAL(row);
+		array_init(row);
+		
+		add_next_index_zval(return_value, row);
+		
+		/* field name */
+		add_assoc_string(row, "name", cur_f->db_fname, 1);
+		
+		/* field type */
+		switch (cur_f->db_type) {
+			case 'C': add_assoc_string(row, "type", "character", 1);	break;
+			case 'D': add_assoc_string(row, "type", "date", 1); 		break;
+			case 'I': add_assoc_string(row, "type", "integer", 1); 		break;
+			case 'N': add_assoc_string(row, "type", "number", 1); 		break;
+			case 'L': add_assoc_string(row, "type", "boolean", 1);		break;
+			case 'M': add_assoc_string(row, "type", "memo", 1);			break;
+			case 'F': add_assoc_string(row, "type", "float", 1);     break;
+			default:  add_assoc_string(row, "type", "unknown", 1);		break;
+		}
+		
+		/* length of field */
+		add_assoc_long(row, "length", cur_f->db_flen);
+		
+		/* number of decimals in field */
+		switch (cur_f->db_type) {
+			case 'N':
+			case 'I':
+				add_assoc_long(row, "precision", cur_f->db_fdc);
+				break;
+			default:
+				add_assoc_long(row, "precision", 0);
+		}
+
+		/* format for printing %s etc */
+		add_assoc_string(row, "format", cur_f->db_format, 1);
+		
+		/* offset within record */
+		add_assoc_long(row, "offset", cur_f->db_foffset);
+	}
+}
 /* }}} */
 
 zend_module_entry dbase_module_entry = {

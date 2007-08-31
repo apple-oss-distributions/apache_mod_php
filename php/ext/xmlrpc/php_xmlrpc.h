@@ -35,14 +35,14 @@
 
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -51,14 +51,11 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: php_xmlrpc.h,v 1.6.4.2 2003/07/24 02:53:46 sniper Exp $ */
+/* $Id: php_xmlrpc.h,v 1.11.2.1.2.2 2007/01/12 12:32:15 tony2001 Exp $ */
 
 #ifndef _PHP_XMLRPC_H
 #define _PHP_XMLRPC_H
 
-/* You should tweak config.m4 so this symbol (or some else suitable)
-   gets defined.
-*/
 #if 1 /* HAVE_XMLRPC */
 
 extern zend_module_entry xmlrpc_module_entry;
@@ -71,9 +68,6 @@ extern zend_module_entry xmlrpc_module_entry;
 #endif
 
 PHP_MINIT_FUNCTION(xmlrpc);
-PHP_MSHUTDOWN_FUNCTION(xmlrpc);
-PHP_RINIT_FUNCTION(xmlrpc);
-PHP_RSHUTDOWN_FUNCTION(xmlrpc);
 PHP_MINFO_FUNCTION(xmlrpc);
 
 PHP_FUNCTION(xmlrpc_encode);
@@ -90,20 +84,6 @@ PHP_FUNCTION(xmlrpc_server_call_method);
 PHP_FUNCTION(xmlrpc_parse_method_descriptions);
 PHP_FUNCTION(xmlrpc_server_add_introspection_data);
 PHP_FUNCTION(xmlrpc_server_register_introspection_callback);
-
-/* Fill in this structure and use entries in it
-   for thread safety instead of using true globals.
-*/
-typedef struct {
-	int x; /* fix error in msvc, cannot have empty structs */
-} zend_xmlrpc_globals;
-
-/* In every function that needs to use variables in zend_xmlrpc_globals,
-   do call XMLRPCLS_FETCH(); after declaring other variables used by
-   that function, and always refer to them as XMLRPCG(variable).
-   You are encouraged to rename these macros something shorter, see
-   examples in any other php module directory.
-*/
 
 #else
 

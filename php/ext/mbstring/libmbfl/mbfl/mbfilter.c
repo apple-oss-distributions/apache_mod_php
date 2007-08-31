@@ -331,12 +331,30 @@ mbfl_buffer_converter_feed_result(mbfl_buffer_converter *convd, mbfl_string *str
 	return mbfl_memory_device_result(&convd->device, result);
 }
 
+int mbfl_buffer_illegalchars(mbfl_buffer_converter *convd)
+{
+	int num_illegalchars = 0;
+
+	if (convd == NULL) {
+		return 0;
+	}
+
+	if (convd->filter1 != NULL) {
+		num_illegalchars += convd->filter1->num_illegalchar;
+	}
+
+	if (convd->filter2 != NULL) {
+		num_illegalchars += convd->filter2->num_illegalchar;
+	}
+
+	return (num_illegalchars);
+}
 
 /*
  * encoding detector
  */
 mbfl_encoding_detector *
-mbfl_encoding_detector_new(enum mbfl_no_encoding *elist, int elistsz)
+mbfl_encoding_detector_new(enum mbfl_no_encoding *elist, int elistsz, int strict)
 {
 	mbfl_encoding_detector *identd;
 
@@ -370,6 +388,9 @@ mbfl_encoding_detector_new(enum mbfl_no_encoding *elist, int elistsz)
 		i++;
 	}
 	identd->filter_list_size = num;
+
+	/* set strict flag */
+	identd->strict = strict;
 
 	return identd;
 }
@@ -405,16 +426,16 @@ mbfl_encoding_detector_feed(mbfl_encoding_detector *identd, mbfl_string *string)
 		num = identd->filter_list_size;
 		n = string->len;
 		p = string->val;
+		bad = 0;
 		while (n > 0) {
-			i = 0;
-			bad = 0;
-			while (i < num) {
+			for (i = 0; i < num; i++) {
 				filter = identd->filter_list[i];
-				(*filter->filter_function)(*p, filter);
-				if (filter->flag) {
-					bad++;
+				if (!filter->flag) {
+					(*filter->filter_function)(*p, filter);
+					if (filter->flag) {
+						bad++;
+					}
 				}
-				i++;
 			}
 			if ((num - 1) <= bad) {
 				res = 1;
@@ -441,9 +462,23 @@ enum mbfl_no_encoding mbfl_encoding_detector_judge(mbfl_encoding_detector *ident
 		while (n >= 0) {
 			filter = identd->filter_list[n];
 			if (!filter->flag) {
+				if (identd->strict && filter->status) {
+					continue;
+				}
 				encoding = filter->encoding->no_encoding;
 			}
 			n--;
+		}
+
+		if (encoding ==	mbfl_no_encoding_invalid) {
+			n = identd->filter_list_size - 1;
+			while (n >= 0) {
+				filter = identd->filter_list[n];
+				if (!filter->flag) {
+					encoding = filter->encoding->no_encoding;
+				}
+				n--;
+			}
 		}
 	}
 
@@ -555,9 +590,11 @@ mbfl_identify_encoding(mbfl_string *string, enum mbfl_no_encoding *elist, int el
 		while (n > 0) {
 			for (i = 0; i < num; i++) {
 				filter = &flist[i];
-				(*filter->filter_function)(*p, filter);
-				if (filter->flag) {
-					bad++;
+				if (!filter->flag) {
+					(*filter->filter_function)(*p, filter);
+					if (filter->flag) {
+						bad++;
+					}
 				}
 			}
 			if ((num - 1) <= bad && !strict) {
@@ -574,8 +611,22 @@ mbfl_identify_encoding(mbfl_string *string, enum mbfl_no_encoding *elist, int el
 	for (i = 0; i < num; i++) {
 		filter = &flist[i];
 		if (!filter->flag) {
+			if (strict && filter->status) {
+				continue;
+			}
 			encoding = filter->encoding;
 			break;
+		}
+	}
+
+	/* fall-back judge */
+	if (!encoding) {
+		for (i = 0; i < num; i++) {
+			filter = &flist[i];
+			if (!filter->flag) {
+				encoding = filter->encoding;
+				break;
+			}
 		}
 	}
 
@@ -606,11 +657,11 @@ mbfl_identify_encoding_name(mbfl_string *string, enum mbfl_no_encoding *elist, i
 }
 
 enum mbfl_no_encoding
-mbfl_identify_encoding_no(mbfl_string *string, enum mbfl_no_encoding *elist, int elistsz)
+mbfl_identify_encoding_no(mbfl_string *string, enum mbfl_no_encoding *elist, int elistsz, int strict)
 {
 	const mbfl_encoding *encoding;
 
-	encoding = mbfl_identify_encoding(string, elist, elistsz, 0);
+	encoding = mbfl_identify_encoding(string, elist, elistsz, strict);
 	if (encoding != NULL &&
 	    encoding->no_encoding > mbfl_no_encoding_charset_min &&
 	    encoding->no_encoding < mbfl_no_encoding_charset_max) {
@@ -807,7 +858,7 @@ mbfl_strpos(
     int offset,
     int reverse)
 {
-	int n, result;
+	int n, result, negative_offset = 0;
 	unsigned char *p;
 	mbfl_convert_filter *filter;
 	struct collector_strpos_data pc;
@@ -853,6 +904,12 @@ mbfl_strpos(
 		mbfl_wchar_device_clear(&pc.needle);
 		return -4;
 	}
+
+	if (offset < 0) {
+		negative_offset = -offset-1;
+		offset = 0;
+	}
+
 	pc.start = offset;
 	pc.output = 0;
 	pc.needle_pos = 0;
@@ -861,7 +918,7 @@ mbfl_strpos(
 
 	/* feed data */
 	p = haystack->val;
-	n = haystack->len;
+	n = haystack->len - negative_offset;
 	if (p != NULL) {
 		while (n > 0) {
 			if ((*filter->filter_function)(*p++, filter) < 0) {
@@ -1960,6 +2017,25 @@ mime_header_encoder_block_collector(int c, void *data)
 static int
 mime_header_encoder_collector(int c, void *data)
 {
+	static int qp_table[256] = {
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0x00 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0x00 */
+		1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 0x20 */
+		0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 1, 0, 1, /* 0x10 */
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 0x40 */
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, /* 0x50 */
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 0x60 */
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, /* 0x70 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0x80 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0x90 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0xA0 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0xB0 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0xC0 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0xD0 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 0xE0 */
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1  /* 0xF0 */
+	};
+
 	int n;
 	struct mime_header_encoder_data *pe = (struct mime_header_encoder_data *)data;
 
@@ -1969,7 +2045,7 @@ mime_header_encoder_collector(int c, void *data)
 		break;
 
 	default:	/* ASCII */
-		if (c >= 0x21 && c < 0x7f) {	/* ASCII exclude SPACE and CTLs */
+		if (c <= 0x00ff && !qp_table[(c & 0xff)]) { /* ordinary characters */
 			mbfl_memory_device_output(c, &pe->tmpdev);
 			pe->status1 = 1;
 		} else if (pe->status1 == 0 && c == 0x20) {	/* repeat SPACE */

@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -21,7 +21,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: pi3web_sapi.c,v 1.46.2.7 2004/12/05 09:48:48 holger Exp $ */
+/* $Id: pi3web_sapi.c,v 1.60.2.1.2.1 2007/01/01 09:36:13 sebastian Exp $ */
 
 #define ZEND_INCLUDE_FULL_WINDOWS_HEADERS
 
@@ -57,7 +57,7 @@ static void php_info_pi3web(ZEND_MODULE_INFO_FUNC_ARGS)
 	PUTS("<table border=0 cellpadding=3 cellspacing=1 width=600 align=center>\n");
 	PUTS("<tr><th colspan=2 bgcolor=\"" PHP_HEADER_COLOR "\">Pi3Web Server Information</th></tr>\n");
 	php_info_print_table_header(2, "Information Field", "Value");
-	php_info_print_table_row(2, "Pi3Web SAPI module version", "$Id: pi3web_sapi.c,v 1.46.2.7 2004/12/05 09:48:48 holger Exp $");
+	php_info_print_table_row(2, "Pi3Web SAPI module version", "$Id: pi3web_sapi.c,v 1.60.2.1.2.1 2007/01/01 09:36:13 sebastian Exp $");
 	php_info_print_table_row(2, "Server Name Stamp", HTTPCore_getServerStamp());
 	snprintf(variable_buf, 511, "%d", HTTPCore_debugEnabled());
 	php_info_print_table_row(2, "Debug Enabled", variable_buf);
@@ -307,6 +307,7 @@ static void sapi_pi3web_register_variables(zval *track_vars_array TSRMLS_DC)
 
 	}
 
+
 	/* PHP_SELF support */
 	variable_len = PI3WEB_SERVER_VAR_BUF_SIZE;
 	if (lpCB->GetServerVariable(lpCB->ConnID, "SCRIPT_NAME", static_variable_buf, &variable_len)
@@ -335,11 +336,12 @@ static sapi_module_struct pi3web_sapi_module = {
 	sapi_pi3web_read_cookies,		/* read Cookies */
 	sapi_pi3web_register_variables,	/* register server variables */
 	NULL,					/* Log message */
+	NULL,					/* Get request time */
 
 	STANDARD_SAPI_MODULE_PROPERTIES
 };
 
-MODULE_API DWORD PHP4_wrapper(LPCONTROL_BLOCK lpCB)
+MODULE_API DWORD PHP5_wrapper(LPCONTROL_BLOCK lpCB)
 {
 	zend_file_handle file_handle = {0};
 	int iRet = PIAPI_COMPLETED;
@@ -408,7 +410,7 @@ MODULE_API DWORD PHP4_wrapper(LPCONTROL_BLOCK lpCB)
 	return iRet;
 }
 
-MODULE_API BOOL PHP4_startup() {
+MODULE_API BOOL PHP5_startup() {
 	tsrm_startup(1, 1, 0, NULL);
 	sapi_startup(&pi3web_sapi_module);
 	if (pi3web_sapi_module.startup) {
@@ -418,7 +420,7 @@ MODULE_API BOOL PHP4_startup() {
 	return IWasLoaded;
 };
 
-MODULE_API BOOL PHP4_shutdown() {
+MODULE_API BOOL PHP5_shutdown() {
 	if (pi3web_sapi_module.shutdown) {
 		pi3web_sapi_module.shutdown(&pi3web_sapi_module);
 	};

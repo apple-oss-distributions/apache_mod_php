@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -15,7 +15,7 @@
    | Author: Edin Kadribasic <edink@php.net>                              |
    +----------------------------------------------------------------------+
 */
-/* $Id: php_embed.h,v 1.1.2.2 2003/01/28 10:54:17 edink Exp $ */
+/* $Id: php_embed.h,v 1.6.2.2.2.1 2007/01/01 09:36:12 sebastian Exp $ */
 
 #ifndef _PHP_EMBED_H_
 #define _PHP_EMBED_H_
@@ -32,17 +32,23 @@
 #define PTSRMLS_DC       , PTSRMLS_D
 #define PTSRMLS_C        &tsrm_ls
 #define PTSRMLS_CC       , PTSRMLS_C
-#else
-#define PTSRMLS_D
-#define PTSRMLS_DC
-#define PTSRMLS_C
-#define PTSRMLS_CC
-#endif
 
 #define PHP_EMBED_START_BLOCK(x,y) { \
     void ***tsrm_ls; \
     php_embed_init(x, y PTSRMLS_CC); \
     zend_first_try {
+
+#else
+#define PTSRMLS_D
+#define PTSRMLS_DC
+#define PTSRMLS_C
+#define PTSRMLS_CC
+
+#define PHP_EMBED_START_BLOCK(x,y) { \
+    php_embed_init(x, y); \
+    zend_first_try {
+
+#endif
 
 #define PHP_EMBED_END_BLOCK() \
   } zend_catch { \

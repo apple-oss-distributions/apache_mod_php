@@ -1,13 +1,13 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -16,7 +16,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: cdb.c,v 1.3.2.3 2003/01/31 20:10:11 helly Exp $ */
+/* $Id: cdb.c,v 1.10.2.1.2.3 2007/04/14 11:15:13 helly Exp $ */
 
 /* incorporated from D.J.Bernstein's cdb-0.75 (http://cr.yp.to/cdb.html)*/
 
@@ -64,23 +64,15 @@ static int cdb_match(struct cdb *c, char *key, unsigned int len, uint32 pos TSRM
 }
 /* }}} */
 
-/* {{{ cdb_hashadd */
-static uint32 cdb_hashadd(uint32 h, unsigned char c)
-{
-	h += (h << 5);
-	return h ^ c;
-}
-/* }}} */
-
 /* {{{ cdb_hash */
 uint32 cdb_hash(char *buf, unsigned int len)
 {
 	uint32 h;
+	const unsigned char * b = (unsigned char *)buf;
 
 	h = CDB_HASHSTART;
-	while (len) {
-		h = cdb_hashadd(h, *buf++);
-		--len;
+	while (len--) {
+		h = ( h + (h << 5)) ^ (*b++);
 	}
 	return h;
 }
@@ -197,6 +189,6 @@ int cdb_find(struct cdb *c, char *key, unsigned int len TSRMLS_DC)
 /* {{{ cdb_version */
 char *cdb_version() 
 {
-	return "0.75, $Revision: 1.3.2.3 $";
+	return "0.75, $Revision: 1.10.2.1.2.3 $";
 }
 /* }}} */

@@ -57,7 +57,9 @@
 #include "filters/mbfilter_euc_kr.h"
 #include "filters/mbfilter_iso2022_kr.h"
 #include "filters/mbfilter_sjis.h"
+#include "filters/mbfilter_cp51932.h"
 #include "filters/mbfilter_jis.h"
+#include "filters/mbfilter_iso2022_jp_ms.h"
 #include "filters/mbfilter_euc_jp.h"
 #include "filters/mbfilter_euc_jp_win.h"
 #include "filters/mbfilter_ascii.h"
@@ -95,6 +97,7 @@
 #include "filters/mbfilter_ucs4.h"
 #include "filters/mbfilter_ucs2.h"
 #include "filters/mbfilter_htmlent.h"
+#include "filters/mbfilter_armscii8.h"
 
 #ifndef HAVE_STRCASECMP
 #ifdef HAVE_STRICMP
@@ -148,8 +151,10 @@ static const mbfl_encoding *mbfl_encoding_ptr_list[] = {
 	&mbfl_encoding_sjis,
 	&mbfl_encoding_eucjp_win,
 	&mbfl_encoding_sjis_win,
+	&mbfl_encoding_cp51932,
 	&mbfl_encoding_jis,
 	&mbfl_encoding_2022jp,
+	&mbfl_encoding_2022jpms,
 	&mbfl_encoding_cp1252,
 	&mbfl_encoding_8859_1,
 	&mbfl_encoding_8859_2,
@@ -176,6 +181,7 @@ static const mbfl_encoding *mbfl_encoding_ptr_list[] = {
 	&mbfl_encoding_cp1251,
 	&mbfl_encoding_cp866,
 	&mbfl_encoding_koi8r,
+	&mbfl_encoding_armscii8,
 	NULL
 };
 

@@ -1,24 +1,27 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 4                                                        |
+   | PHP Version 5                                                        |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1997-2003 The PHP Group                                |
+   | Copyright (c) 1997-2007 The PHP Group                                |
    +----------------------------------------------------------------------+
-   | This source file is subject to version 2.02 of the PHP license,      |
+   | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
-   | available at through the world-wide-web at                           |
-   | http://www.php.net/license/2_02.txt.                                 |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
-   | Author: Stig Sæther Bakken <ssb@fast.no>                             |
+   | Author: Stig Sæther Bakken <ssb@php.net>                             |
+   |         Marcus Boerger <helly@php.net>                               |
    +----------------------------------------------------------------------+
- */
+*/
+
+/* $Id: snprintf.h,v 1.32.2.3.2.5 2007/04/06 19:25:52 andrei Exp $ */
 
 /*
 
-Comparing: sprintf, snprintf, spprintf 
+Comparing: sprintf, snprintf, slprintf, spprintf 
 
 sprintf  offers the ability to make a lot of failures since it does not know
          the size of the buffer it uses. Therefore usage of sprintf often
@@ -33,6 +36,11 @@ snprintf knows the buffers size and will not write behind it. But you will
          A bad thing is having a big maximum while in most cases you would
          only need a small buffer. If the size of the resulting string is 
          longer or equal to the buffer size than the buffer is not terminated.
+         The function also returns the number of chars not including the 
+         terminating \0 that were needed to fully comply to the print request.
+
+slprintf same as snprintf with the difference that it actually returns the 
+         length printed not including the terminating \0.
 
 spprintf is the dynamical version of snprintf. It allocates the buffer in size
          as needed and allows a maximum setting as snprintf (turn this feature
@@ -62,48 +70,83 @@ Example:
 #ifndef SNPRINTF_H
 #define SNPRINTF_H
 
-PHPAPI int ap_php_snprintf(char *, size_t, const char *, ...) PHP_ATTRIBUTE_FORMAT(printf, 3, 4);
+typedef int bool_int;
+
+typedef enum {
+	NO = 0, YES = 1
+} boolean_e;
+
+
+BEGIN_EXTERN_C()
+PHPAPI int ap_php_slprintf(char *buf, size_t len, const char *format,...);
+PHPAPI int ap_php_vslprintf(char *buf, size_t len, const char *format, va_list ap);
+PHPAPI int ap_php_snprintf(char *, size_t, const char *, ...);
+PHPAPI int ap_php_vsnprintf(char *, size_t, const char *, va_list ap);
+PHPAPI int php_sprintf (char* s, const char* format, ...) PHP_ATTRIBUTE_FORMAT(printf, 2, 3);
+PHPAPI char * php_gcvt(double value, int ndigit, char dec_point, char exponent, char *buf);
+PHPAPI char * php_conv_fp(register char format, register double num,
+		 boolean_e add_dp, int precision, char dec_point, bool_int * is_negative, char *buf, int *len);
+
+END_EXTERN_C()
+
+#ifdef slprintf
+#undef slprintf
+#endif
+#define slprintf ap_php_slprintf
+
+#ifdef vslprintf
+#undef vslprintf
+#endif
+#define vslprintf ap_php_vslprintf
+
 #ifdef snprintf
 #undef snprintf
 #endif
 #define snprintf ap_php_snprintf
 
-PHPAPI int ap_php_vsnprintf(char *, size_t, const char *, va_list ap) PHP_ATTRIBUTE_FORMAT(printf, 3, 0);
 #ifdef vsnprintf
 #undef vsnprintf
 #endif
 #define vsnprintf ap_php_vsnprintf
 
-PHPAPI int php_sprintf (char* s, const char* format, ...) PHP_ATTRIBUTE_FORMAT(printf, 2, 3);
 #ifdef sprintf
 #undef sprintf
 #endif
 #define sprintf php_sprintf
 
 typedef enum {
-	NO = 0, YES = 1
-} boolean_e;
+	LM_STD = 0,
+#if SIZEOF_INTMAX_T
+	LM_INTMAX_T,
+#endif
+#if SIZEOF_PTRDIFF_T
+	LM_PTRDIFF_T,
+#endif
+#if SIZEOF_LONG_LONG
+	LM_LONG_LONG,
+#endif
+	LM_SIZE_T,
+	LM_LONG,
+	LM_LONG_DOUBLE
+} length_modifier_e;
 
-extern char * ap_php_cvt(double arg, int ndigits, int *decpt, int *sign, int eflag, char *buf);
-extern char * ap_php_ecvt(double arg, int ndigits, int *decpt, int *sign, char *buf);
-extern char * ap_php_fcvt(double arg, int ndigits, int *decpt, int *sign, char *buf);
-extern char * ap_php_gcvt(double number, int ndigit, char *buf, boolean_e altform);
-
-#define WIDE_INT		long
+#ifdef PHP_WIN32
+# define WIDE_INT		__int64
+#elif SIZEOF_LONG_LONG_INT
+# define WIDE_INT		long long int
+#elif SIZEOF_LONG_LONG
+# define WIDE_INT		long long
+#else
+# define WIDE_INT		long
+#endif
 typedef WIDE_INT wide_int;
 typedef unsigned WIDE_INT u_wide_int;
-
-typedef int bool_int;
 
 extern char * ap_php_conv_10(register wide_int num, register bool_int is_unsigned,
 	   register bool_int * is_negative, char *buf_end, register int *len);
 
-extern char * ap_php_conv_fp(register char format, register double num,
-		 boolean_e add_dp, int precision, bool_int * is_negative, char *buf, int *len);
-
 extern char * ap_php_conv_p2(register u_wide_int num, register int nbits,
 		 char format, char *buf_end, register int *len);
-
 
 #endif /* SNPRINTF_H */
 

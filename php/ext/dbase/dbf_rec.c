@@ -136,7 +136,8 @@ void pack_dbf(dbhead_t *dbh)
 
 	/* Try to truncate the file to the right size. */
 	if (ftruncate(dbh->db_fd, out_off) != 0) {
-	    php_error(E_WARNING, "dbase_pack() couldn't truncate the file to the right size. Some deleted records may still be left in there.");
+	    TSRMLS_FETCH();
+	    php_error_docref(NULL TSRMLS_CC, E_WARNING, "dbase_pack() couldn't truncate the file to the right size. Some deleted records may still be left in there.");
 	}
 
 	if (rec_cnt == 0)
@@ -151,8 +152,7 @@ char *get_field_val(char *rp, dbfield_t *fldp, char *cp)
 	if ( !cp )
 		cp = (char *)malloc(flen + 1);
 	if ( cp ) {
-		strncpy(cp, &rp[fldp->db_foffset], flen);
-		cp[flen] = 0;
+		strlcpy(cp, &rp[fldp->db_foffset], flen + 1);
 	}
 	return cp;
 }
@@ -167,16 +167,16 @@ void put_field_val(char *rp, dbfield_t *fldp, char *cp)
  */
 void out_rec(dbhead_t *dbh, dbfield_t *dbf, char *cp)
 {
-        dbfield_t       *cur_f;
-        int     nfields = dbh->db_nfields;
-        char    *fnp = (char *)malloc(dbh->db_rlen);
+	dbfield_t       *cur_f;
+	int     nfields = dbh->db_nfields;
+	char    *fnp = (char *)malloc(dbh->db_rlen);
 
-        printf("%c", *cp);
-        for (cur_f = dbf; cur_f < &dbf[nfields] ; cur_f++) {
-                printf(" ");
+	printf("%c", *cp);
+	for (cur_f = dbf; cur_f < &dbf[nfields] ; cur_f++) {
+		printf(" ");
 		printf(cur_f->db_format, get_field_val(cp, cur_f, fnp));
-        }
-        printf("\n");
+	}
+	printf("\n");
 	free(fnp);
 }
 
