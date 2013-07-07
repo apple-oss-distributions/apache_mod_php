@@ -36,7 +36,7 @@ diff -aur php-5.3.6/ext/phar/Makefile.frag php/ext/phar/Makefile.frag
  
  $(builddir)/phar/phar.inc: $(srcdir)/phar/phar.inc
  	-@test -d $(builddir)/phar || mkdir $(builddir)/phar
-@@ -26,14 +26,14 @@
+@@ -26,17 +26,17 @@
  
  $(builddir)/phar.php: $(srcdir)/build_precommand.php $(srcdir)/phar/*.inc $(srcdir)/phar/*.php $(SAPI_CLI_PATH)
  	-@echo "Generating phar.php"
@@ -54,3 +54,7 @@ diff -aur php-5.3.6/ext/phar/Makefile.frag php/ext/phar/Makefile.frag
  
  install-pharcmd: pharcmd
  	-@$(mkinstalldirs) $(INSTALL_ROOT)$(bindir)
+ 	$(INSTALL) $(builddir)/phar.phar $(INSTALL_ROOT)$(bindir)
+ 	-@rm -f $(INSTALL_ROOT)$(bindir)/phar
+-	$(LN_S) -f $(bindir)/phar.phar $(INSTALL_ROOT)$(bindir)/phar
++	cd $(INSTALL_ROOT)$(bindir) && $(LN_S) -f phar.phar phar
