@@ -1,6 +1,6 @@
 #
 # Apple wrapper Makefile for PHP
-# Copyright (c) 2008-2013 Apple Inc. All Rights Reserved.
+# Copyright (c) 2008-2014 Apple Inc. All Rights Reserved.
 ##
 #
 
@@ -9,7 +9,7 @@ Project         = php
 ProjectName     = apache_mod_php
 UserType        = Developer
 ToolType        = Commands
-Submission      = 84
+Submission      = 93
 
 # Environment is passed to BOTH configure AND make, which can cause problems if these
 # variables are intended to help configure, but not override the result.
@@ -18,13 +18,14 @@ Environment	= YACC=/usr/local/bin/bison-1.28 \
 			LEX=/usr/local/bin/lex-2.5.4 \
 			MAKEOBJDIR="$(BuildDirectory)" \
 			INSTALL_ROOT="$(DSTROOT)" \
-			TMPDIR="$(TMPDIR)" TEMPDIR="$(TMPDIR)"
+			TMPDIR="$(TMPDIR)" TEMPDIR="$(TMPDIR)" 
 # This allows extra variables to be passed _just_ to configure.
 Extra_Configure_Environment	= CFLAGS="$$RC_CFLAGS -Os -g" \
 					LDFLAGS="$$RC_CFLAGS -Os -g" \
 					EXTRA_LIBS="-lresolv" \
 					EXTRA_LDFLAGS_PROGRAM="-mdynamic-no-pic"
 
+build_host_target_alias=`$SHELL "$(Sources)/config.guess"`
 # The configure flags are ordered to match current output of ./configure --help.
 # Extra indentation represents suboptions.
 Extra_Configure_Flags	= --sysconfdir=$(ETCDIR) \
@@ -42,38 +43,36 @@ Extra_Configure_Flags	= --sysconfdir=$(ETCDIR) \
 			--disable-cgi \
 			--with-curl=$(USRDIR) \
 			--enable-dba \
-				--enable-ndbm=$(USRDIR) \
+			--with-ndbm=$(USRDIR) \
 			--enable-exif \
 			--enable-fpm \
 			--enable-ftp \
+			--with-png-dir=no \
 			--with-gd \
-				--with-freetype-dir=$(DSTROOT)$(USRDIR)/local \
-				--with-jpeg-dir=$(DSTROOT)$(USRDIR)/local \
-				--with-png-dir=$(DSTROOT)$(USRDIR)/local \
-				--enable-gd-native-ttf \
+			--with-jpeg-dir=$(DSTROOT)$(USRDIR)/local \
+			--enable-gd-native-ttf \
 			--with-icu-dir=$(USRDIR) \
-			--with-ldap=$(USRDIR) \
-				--with-ldap-sasl=$(USRDIR) \
+			--with-ldap=$(USRDIR)\
+			--with-ldap-sasl=$(USRDIR) \
 			--with-libedit=$(USRDIR) \
 			--enable-mbstring \
 			--enable-mbregex \
 			--with-mysql=mysqlnd \
 			--with-mysqli=mysqlnd \
 			--without-pear \
+			--with-pear=no\
 			--with-pdo-mysql=mysqlnd \
-				--with-mysql-sock=/var/mysql/mysql.sock \
+			--with-mysql-sock=/var/mysql/mysql.sock \
 			--with-readline=$(USRDIR) \
 			--enable-shmop \
 			--with-snmp=$(USRDIR) \
 			--enable-soap \
 			--enable-sockets \
-			--enable-sqlite-utf8 \
-			--enable-suhosin \
 			--enable-sysvmsg --enable-sysvsem --enable-sysvshm \
 			--with-tidy \
 			--enable-wddx \
 			--with-xmlrpc \
-				--with-iconv-dir=$(USRDIR) \
+			--with-iconv-dir=$(USRDIR) \
 			--with-xsl=$(USRDIR) \
 			--enable-zend-multibyte \
 			--enable-zip
@@ -81,15 +80,15 @@ Extra_Configure_Flags	= --sysconfdir=$(ETCDIR) \
 
 # Additional project info used with AEP
 AEP		= YES
-AEP_Version	= 5.4.17
+AEP_Version	= 5.5.14
 AEP_LicenseFile	= $(Sources)/LICENSE
 AEP_Patches	=  \
 			MacOSX_build.patch \
-			iconv.patch pear.patch phar.patch 
+			iconv.patch pear.patch phar.patch
 AEP_ConfigDir	= $(ETCDIR)
 AEP_Binaries	= $(shell $(USRSBINDIR)/apxs -q LIBEXECDIR)/*.so $(USRBINDIR)/php $(USRSBINDIR)/php-fpm
 AEP_ManPages	= pear.1 phar.1 phar.phar.1
-Dependencies	= libpng freetype libjpeg 
+Dependencies	= libjpeg 
 GnuAfterInstall = archive-strip-binaries install-macosx install-xdebug install-open-source-files # needs a path adjustment
 
 
@@ -356,8 +355,8 @@ install-macosx:
 	-$(RMDIR) $(DSTROOT)$(ETCDIR)/apache2
 	$(CHOWN) -R root:wheel $(DSTROOT)/
 	$(INSTALL_FILE) $(Sources)/php.ini-production $(DSTROOT)$(AEP_ConfigDir)/php.ini.default
-	$(PERL) -i -pe 's|^extension_dir =.*|extension_dir = $(USRLIBDIR)/php/extensions/no-debug-non-zts-20100525|' $(DSTROOT)$(AEP_ConfigDir)/php.ini.default
-	$(INSTALL_DIRECTORY) $(DSTROOT)$(USRLIBDIR)/php/extensions/no-debug-non-zts-20100525
+	$(PERL) -i -pe 's|^extension_dir =.*|extension_dir = $(USRLIBDIR)/php/extensions/no-debug-non-zts-20121212|' $(DSTROOT)$(AEP_ConfigDir)/php.ini.default
+	$(INSTALL_DIRECTORY) $(DSTROOT)$(USRLIBDIR)/php/extensions/no-debug-non-zts-20121212
 	@echo "Removing references to DSTROOT in php-config and include files..."
 	$(CP) $(DSTROOT)$(USRBINDIR)/php-config $(SYMROOT)/php-config \
 		&& $(SED) -e 's=-L$(DSTROOT)$(USRDIR)/local/lib==' $(SYMROOT)/php-config \
