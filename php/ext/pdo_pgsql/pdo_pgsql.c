@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | PHP Version 5                                                        |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2015 The PHP Group                                |
+  | Copyright (c) 1997-2016 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -16,7 +16,7 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id: af568c8ae63693bc2b766337bd4731078e62f9b4 $ */
+/* $Id$ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -86,6 +86,7 @@ ZEND_GET_MODULE(pdo_pgsql)
 PHP_MINIT_FUNCTION(pdo_pgsql)
 {
 	REGISTER_PDO_CLASS_CONST_LONG("PGSQL_ATTR_DISABLE_NATIVE_PREPARED_STATEMENT", PDO_PGSQL_ATTR_DISABLE_NATIVE_PREPARED_STATEMENT);
+	REGISTER_PDO_CLASS_CONST_LONG("PGSQL_ATTR_DISABLE_PREPARES", PDO_PGSQL_ATTR_DISABLE_PREPARES);
 	REGISTER_PDO_CLASS_CONST_LONG("PGSQL_TRANSACTION_IDLE", (long)PGSQL_TRANSACTION_IDLE);
 	REGISTER_PDO_CLASS_CONST_LONG("PGSQL_TRANSACTION_ACTIVE", (long)PGSQL_TRANSACTION_ACTIVE);
 	REGISTER_PDO_CLASS_CONST_LONG("PGSQL_TRANSACTION_INTRANS", (long)PGSQL_TRANSACTION_INTRANS);
@@ -116,7 +117,7 @@ PHP_MINFO_FUNCTION(pdo_pgsql)
 	php_info_print_table_row(2, "PostgreSQL(libpq) Version", PG_VERSION);
 #endif	
 	php_info_print_table_row(2, "Module version", pdo_pgsql_module_entry.version);
-	php_info_print_table_row(2, "Revision", " $Id: af568c8ae63693bc2b766337bd4731078e62f9b4 $ ");
+	php_info_print_table_row(2, "Revision", " $Id$ ");
 
 	php_info_print_table_end();
 }
