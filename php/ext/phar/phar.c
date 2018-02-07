@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | phar php single-file executable PHP extension                        |
   +----------------------------------------------------------------------+
-  | Copyright (c) 2005-2017 The PHP Group                                |
+  | Copyright (c) 2005-2018 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -17,7 +17,7 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id$ */
+/* $Id: 898d1dac303a2eedebae7b6c8fa859253b781100 $ */
 
 #define PHAR_MAIN 1
 #include "phar_internal.h"
@@ -3540,7 +3540,7 @@ PHP_MINFO_FUNCTION(phar) /* {{{ */
 	php_info_print_table_header(2, "Phar: PHP Archive support", "enabled");
 	php_info_print_table_row(2, "Phar EXT version", PHP_PHAR_VERSION);
 	php_info_print_table_row(2, "Phar API version", PHP_PHAR_API_VERSION);
-	php_info_print_table_row(2, "SVN revision", "$Id$");
+	php_info_print_table_row(2, "SVN revision", "$Id: 898d1dac303a2eedebae7b6c8fa859253b781100 $");
 	php_info_print_table_row(2, "Phar-based phar archives", "enabled");
 	php_info_print_table_row(2, "Tar-based phar archives", "enabled");
 	php_info_print_table_row(2, "ZIP-based phar archives", "enabled");
