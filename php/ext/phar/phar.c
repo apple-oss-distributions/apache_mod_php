@@ -17,7 +17,7 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id: 898d1dac303a2eedebae7b6c8fa859253b781100 $ */
+/* $Id: 56fa253a6fef2a07ac702a358f778eddc01a09ea $ */
 
 #define PHAR_MAIN 1
 #include "phar_internal.h"
@@ -1835,7 +1835,7 @@ static int phar_check_str(const char *fname, const char *ext_str, int ext_len, i
 	char test[51];
 	const char *pos;
 
-	if (ext_len >= 50) {
+	if (ext_len < 0 || ext_len >= 50) {
 		return FAILURE;
 	}
 
@@ -3540,7 +3540,7 @@ PHP_MINFO_FUNCTION(phar) /* {{{ */
 	php_info_print_table_header(2, "Phar: PHP Archive support", "enabled");
 	php_info_print_table_row(2, "Phar EXT version", PHP_PHAR_VERSION);
 	php_info_print_table_row(2, "Phar API version", PHP_PHAR_API_VERSION);
-	php_info_print_table_row(2, "SVN revision", "$Id: 898d1dac303a2eedebae7b6c8fa859253b781100 $");
+	php_info_print_table_row(2, "SVN revision", "$Id: 56fa253a6fef2a07ac702a358f778eddc01a09ea $");
 	php_info_print_table_row(2, "Phar-based phar archives", "enabled");
 	php_info_print_table_row(2, "Tar-based phar archives", "enabled");
 	php_info_print_table_row(2, "ZIP-based phar archives", "enabled");

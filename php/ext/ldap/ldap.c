@@ -23,7 +23,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: 8dbea0c3ba11210a36d586df44ad9e6af14809c4 $ */
+/* $Id: 5f1913de8e05a346da913956f81e0c0d8991c7cb $ */
 #define IS_EXT_MODULE
 
 #ifdef HAVE_CONFIG_H
@@ -320,7 +320,7 @@ PHP_MINFO_FUNCTION(ldap)
 
 	php_info_print_table_start();
 	php_info_print_table_row(2, "LDAP Support", "enabled");
-	php_info_print_table_row(2, "RCS Version", "$Id: 8dbea0c3ba11210a36d586df44ad9e6af14809c4 $");
+	php_info_print_table_row(2, "RCS Version", "$Id: 5f1913de8e05a346da913956f81e0c0d8991c7cb $");
 
 	if (LDAPG(max_links) == -1) {
 		snprintf(tmp, 31, ZEND_LONG_FMT "/unlimited", LDAPG(num_links));
@@ -1170,7 +1170,11 @@ PHP_FUNCTION(ldap_get_entries)
 
 		add_assoc_long(&tmp1, "count", num_attrib);
 		dn = ldap_get_dn(ldap, ldap_result_entry);
-		add_assoc_string(&tmp1, "dn", dn);
+		if (dn) {
+			add_assoc_string(&tmp1, "dn", dn);
+		} else {
+			add_assoc_null(&tmp1, "dn");
+		}
 #if (LDAP_API_VERSION > 2000) || HAVE_NSLDAP || HAVE_ORALDAP || WINDOWS
 		ldap_memfree(dn);
 #else
