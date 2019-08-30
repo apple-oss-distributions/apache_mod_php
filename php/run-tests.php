@@ -24,7 +24,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: 5f8055d2f3d139cf61f7ca25db33bf2e342c280b $ */
+/* $Id: b2cab41133e9340db6f5887583bff21aa3be1849 $ */
 
 define('INIT_DIR', getcwd());
 
@@ -695,7 +695,7 @@ if (isset($argc) && $argc > 1) {
 					$html_output = is_resource($html_file);
 					break;
 				case '--version':
-					echo '$Id: 5f8055d2f3d139cf61f7ca25db33bf2e342c280b $' . "\n";
+					echo '$Id: b2cab41133e9340db6f5887583bff21aa3be1849 $' . "\n";
 					exit(1);
 
 				default:
@@ -1971,8 +1971,6 @@ COMMAND $cmd
 		}
 	}
 
-	@unlink($tmp_post);
-
 	$leaked = false;
 	$passed = false;
 
@@ -2162,6 +2160,10 @@ COMMAND $cmd
 
 	if ($warn) {
 		$restype[] = 'WARN';
+	}
+
+	if ($passed) {
+		@unlink($tmp_post);
 	}
 
 	if (!$passed) {
