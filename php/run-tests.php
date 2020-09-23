@@ -24,7 +24,7 @@
    +----------------------------------------------------------------------+
  */
 
-/* $Id: b2cab41133e9340db6f5887583bff21aa3be1849 $ */
+/* $Id: 84b43866fe076c888c620782e44520e27314aa93 $ */
 
 define('INIT_DIR', getcwd());
 
@@ -319,7 +319,7 @@ More .INIs  : " , (function_exists(\'php_ini_scanned_files\') ? str_replace("\n"
 		'session' => array('session.auto_start=0'),
 		'tidy' => array('tidy.clean_output=0'),
 		'zlib' => array('zlib.output_compression=Off'),
-		'xdebug' => array('xdebug.default_enable=0'),
+		'xdebug' => array('xdebug.default_enable=0','xdebug.mode=off'),
 		'mbstring' => array('mbstring.func_overload=0'),
 	);
 
@@ -695,7 +695,7 @@ if (isset($argc) && $argc > 1) {
 					$html_output = is_resource($html_file);
 					break;
 				case '--version':
-					echo '$Id: b2cab41133e9340db6f5887583bff21aa3be1849 $' . "\n";
+					echo '$Id: 84b43866fe076c888c620782e44520e27314aa93 $' . "\n";
 					exit(1);
 
 				default:
